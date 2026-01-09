@@ -121,19 +121,27 @@ options:
 ```
 
 **Verification commands:**
+
+Detect project type and offer relevant options:
+- `package.json` → npm test, npm run typecheck, npm run lint
+- `Gemfile` → bundle exec rspec, bundle exec rubocop
+- `pyproject.toml`/`setup.py` → pytest, mypy, ruff
+- `go.mod` → go test ./..., go vet ./...
+- `Cargo.toml` → cargo test, cargo clippy
+
 ```yaml
 question: "What commands verify the code works?"
 header: "Verify"
 multiSelect: true
 options:
-  - label: "npm test"
-    description: "Run test suite"
-  - label: "npm run typecheck"
-    description: "TypeScript type checking"
-  - label: "npm run lint"
-    description: "Linting"
-  - label: "No tests yet"
-    description: "Skip verification step"
+  # Offer 3-4 relevant options based on detected project type
+  # Always include "No tests yet" and let user specify custom via "Other"
+```
+
+**Save verification commands:** After user selects, update the progress file header:
+```bash
+# Replace the Verify: line in the progress file
+sed -i '' "s/^Verify:.*/Verify: ${COMMANDS}/" .claude/loop-progress/progress-${SESSION}.txt
 ```
 
 ### 6. Create Beads

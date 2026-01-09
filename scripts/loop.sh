@@ -68,6 +68,8 @@ mkdir -p "$PROGRESS_DIR"
 if [ ! -f "$PROGRESS_FILE" ]; then
   echo "# Progress: $SESSION_NAME" > "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
+  echo "Verify: (auto-detect from project)" >> "$PROGRESS_FILE"
+  echo "" >> "$PROGRESS_FILE"
   echo "## Codebase Patterns" >> "$PROGRESS_FILE"
   echo "(Add patterns discovered during implementation here)" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"

@@ -36,10 +36,14 @@ Progress file: ${PROGRESS_FILE}
 
 ## Verification (ALL must pass before proceeding)
 
-```bash
-npm run typecheck
-npm test
-```
+Run the verification commands from the progress file header (look for `Verify:` line).
+
+If no verification commands specified, check for common patterns:
+- `package.json` → `npm test`
+- `Gemfile` → `bundle exec rspec`
+- `pyproject.toml` or `setup.py` → `pytest`
+- `go.mod` → `go test ./...`
+- `Cargo.toml` → `cargo test`
 
 If ANY verification fails → fix it before marking done.
 
