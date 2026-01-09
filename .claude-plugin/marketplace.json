@@ -3,8 +3,7 @@
   "name": "loop-agents-marketplace",
   "description": "Autonomous multi-task execution with context-preserving loops",
   "owner": {
-    "name": "Harrison Wells",
-    "email": "harrison@dododigital.ai"
+    "name": "Harrison Wells"
   },
   "plugins": [
     {
@@ -12,8 +11,7 @@
       "description": "Autonomous multi-task execution with context-preserving loops",
       "version": "1.0.0",
       "author": {
-        "name": "Harrison Wells",
-        "email": "harrison@dododigital.ai"
+        "name": "Harrison Wells"
       },
       "source": "./",
       "category": "development",
