@@ -1,15 +1,23 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "loop-agents-marketplace",
+  "description": "Autonomous multi-task execution with context-preserving loops",
   "owner": {
     "name": "Harrison Wells",
-    "url": "https://github.com/hwells4"
+    "email": "hwells4@github.com"
   },
   "plugins": [
     {
       "name": "loop-agents",
-      "source": ".",
       "description": "Autonomous multi-task execution with context-preserving loops",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "author": {
+        "name": "Harrison Wells",
+        "email": "hwells4@github.com"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/hwells4/loop-agents"
     }
   ]
 }
