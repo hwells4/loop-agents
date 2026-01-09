@@ -1,26 +1,22 @@
 ---
 name: create-prd
-description: Generate PRDs through adaptive questioning. Use when user says "PRD", "spec", "plan a feature", "what should we build", or describes a project/feature they want to build. Works for both full project PRDs and feature-level specs.
-context_budget:
-  skill_md: 200
-  max_references: 2
-  sub_agent_limit: 300
+description: Generate PRDs through adaptive questioning. Use when user says "PRD", "spec", "plan a feature", "what should we build", or describes a project/feature they want to build.
 ---
 
 ## MANDATORY TOOL USAGE
 
 **ALL clarifying questions MUST use the `AskUserQuestion` tool.**
 
-Never output questions as text in your response. If you need information from the user, invoke `AskUserQuestion`. This is non-negotiable.
+Never output questions as text. If you need information, invoke `AskUserQuestion`.
 
 ## What This Skill Produces
 
-A technical spec that gives an AI coding agent enough context to:
+A technical spec saved to `docs/plans/` that gives an AI coding agent enough context to:
 1. Understand what we're building and why
-2. Break it into Linear issues
+2. Break it into beads
 3. Execute without coming back for clarification
 
-This is NOT a traditional enterprise PRD for stakeholder alignment. It's a planning document for execution.
+This is NOT a traditional enterprise PRD. It's a planning document for execution.
 
 ## Process
 
@@ -34,19 +30,19 @@ User describes what they want to build. Could be:
 ### 2. Gather Existing Context (Quick)
 
 Before asking questions, quickly check for relevant context:
-```
-- brain/entities/ for client/stakeholder info
-- brain/calls/ for relevant discussions
-- Linear for related projects/issues
+```bash
+# Check for existing plans
+ls docs/plans/*.md 2>/dev/null || echo "No existing plans"
+
+# Check for project structure
+ls -la src/ app/ lib/ 2>/dev/null | head -10
 ```
 
-This takes 30 seconds, not a full discovery phase. Just grep for obvious matches.
+This takes 30 seconds, not a full discovery phase.
 
 ### 3. Adaptive Questioning
 
 **The core principle:** Keep asking questions until YOU are confident you can write a spec that an AI coding agent could use to build this without coming back for clarification.
-
-That's the bar. Not a checklist.
 
 **How to ask:**
 - Use `AskUserQuestion` with 2-4 questions per round
@@ -62,9 +58,7 @@ That's the bar. Not a checklist.
 - What's explicitly OUT of scope?
 - What could go wrong? (edge cases)
 
-**When to stop:** When you can confidently fill every section of the output template without guessing.
-
-Some projects need 1 round. Some need 5. Use your judgment.
+**When to stop:** When you can confidently fill every section without guessing.
 
 ### 4. Write the PRD
 
@@ -79,11 +73,15 @@ Key sections:
 - Edge Cases (what could go wrong)
 - Open Questions (unknowns to resolve)
 
-### 5. Save to Vault
+### 5. Save to Project
 
+Create the plans directory if needed and save:
+
+```bash
+mkdir -p docs/plans
 ```
-brain/outputs/{YYYY-MM-DD}-{project-slug}-prd.md
-```
+
+Save to: `docs/plans/{YYYY-MM-DD}-{project-slug}-prd.md`
 
 Frontmatter:
 ```yaml
@@ -91,10 +89,20 @@ Frontmatter:
 date: {YYYY-MM-DD}
 type: prd
 status: draft
-tags:
-  - output/prd
-  - status/draft
+project: {project-slug}
 ---
+```
+
+### 6. Confirm Output
+
+Tell the user:
+```
+✅ PRD saved to: docs/plans/{filename}
+
+Next steps:
+- Review and refine: /loop-agents:refine
+- Generate tasks: /loop-agents:create-tasks
+- Or run full workflow: /loop-agents:loop
 ```
 
 ## Success Criteria
@@ -103,13 +111,5 @@ tags:
 - [ ] Stopped questioning when confident (not when checklist complete)
 - [ ] All template sections filled without guessing
 - [ ] Acceptance criteria are specific enough to test
+- [ ] Saved to `docs/plans/` with correct frontmatter
 - [ ] An AI coding agent could build from this without asking follow-ups
-
-## What This Skill Does NOT Do
-
-- Generate Linear issues (separate step)
-- Validate business case or market fit
-- Require stakeholder sign-off
-- Follow a rigid 34-question framework
-
-Keep it simple. The output is a planning document, not a legal contract.

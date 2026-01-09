@@ -1,46 +1,47 @@
 ---
 name: create-tasks
-description: Generate stories from a PRD for autonomous or assisted execution. Use when user says "generate tasks", "break this down", "create stories", or has a PRD they want to execute.
-context_budget:
-  skill_md: 200
-  max_references: 1
+description: Generate beads from a PRD for autonomous execution. Use when user says "generate tasks", "break this down", "create stories", or has a PRD they want to execute.
 ---
 
 ## MANDATORY TOOL USAGE
 
 **ALL clarifying questions MUST use the `AskUserQuestion` tool.**
 
-Never output questions as text in your response. If you need information, invoke `AskUserQuestion`.
+Never output questions as text. If you need information, invoke `AskUserQuestion`.
 
 ## What This Skill Produces
 
 Beads tagged with `loop/{session-name}` that an agent can execute autonomously:
 
 ```bash
-# Each story becomes a bead
-bd create --title="US-001: Story title" --type=task --assignee=agent --label=loop/feature-name
-
-# Body contains acceptance criteria
-```
-
-**Bead body format:**
-```markdown
-## Acceptance Criteria
-- [ ] Criterion that can be verified
-- [ ] Test: specific test case
-- [ ] npm test passes
-- [ ] typecheck passes
+bd create --title="Story title" --type=task --priority=2 --add-label="loop/{session}"
 ```
 
 ## Process
 
 ### 1. Find the PRD
 
-Check `brain/outputs/` for PRDs. If multiple exist, use `AskUserQuestion` to ask which one.
+Check for PRDs in the project:
+```bash
+ls -la docs/plans/*.md 2>/dev/null || echo "No plans found"
+```
 
-If no PRD exists, ask if they want to:
-- A) Create a PRD first (invoke `/prd` skill)
-- B) Describe the feature now (you'll ask clarifying questions)
+If multiple exist, use `AskUserQuestion` to ask which one.
+
+If no PRD exists, ask:
+```yaml
+question: "No PRD found. How would you like to proceed?"
+header: "PRD"
+options:
+  - label: "Create a PRD first"
+    description: "I'll help you write one"
+  - label: "Describe the feature now"
+    description: "I'll ask clarifying questions"
+  - label: "Point me to a file"
+    description: "I have a plan somewhere else"
+```
+
+If they choose to create a PRD, invoke `/loop-agents:prd`.
 
 ### 2. Analyze the PRD
 
@@ -53,27 +54,17 @@ Read the PRD and identify:
 ### 3. Phase 1: Generate Story List
 
 Break the PRD into stories. Each story should be:
-- **Small enough** for one agent session (one context window)
+- **Small enough** for one agent session (~15-60 min of work)
 - **Self-contained** - can be implemented and verified independently
 - **Verifiable** - has clear done criteria
 
-Present the story list and use `AskUserQuestion` for approval:
-
-```
-## Stories
-
-1. US-001: [Title]
-2. US-002: [Title]
-3. US-003: [Title]
-...
-```
-
+Present the story list and use `AskUserQuestion`:
 ```yaml
 question: "Does this story breakdown look right?"
 header: "Stories"
 options:
-  - label: "Yes, generate acceptance criteria"
-    description: "Looks good, proceed to next phase"
+  - label: "Yes, looks good"
+    description: "Proceed to generate beads"
   - label: "Add more stories"
     description: "I want to add something"
   - label: "Adjust these"
@@ -84,18 +75,16 @@ options:
 
 For each story, generate acceptance criteria that:
 - Are specific and verifiable
-- Include test cases (prefix with "Test:")
-- Include verification commands (npm test, typecheck, etc.)
+- Include test cases where applicable
 - An agent can objectively determine pass/fail
 
 **Good criteria:**
 ```
-- Function validates email format using regex
-- Test: rejects 'invalid' (no @ symbol)
-- Test: rejects 'user@' (no domain)
-- Test: accepts 'user@domain.com'
-- npm test passes
-- typecheck passes
+- Function validates email format
+- Rejects 'invalid' (no @ symbol)
+- Rejects 'user@' (no domain)
+- Accepts 'user@domain.com'
+- Tests pass
 ```
 
 **Bad criteria:**
@@ -105,11 +94,8 @@ For each story, generate acceptance criteria that:
 - Code is clean
 ```
 
-### 5. Ask About Session and Verification
+### 5. Ask About Session Name
 
-Use `AskUserQuestion` for each:
-
-**Session name:**
 ```yaml
 question: "What should we call this session? (used for tagging beads)"
 header: "Session"
@@ -120,91 +106,72 @@ options:
     description: "I'll type a custom name"
 ```
 
-**Verification commands (optional):**
+### 6. Initialize Beads (if needed)
 
-Ask what commands should run after each task:
-```yaml
-question: "What commands should verify each task? (leave empty for none)"
-header: "Verify"
-options:
-  - label: "None"
-    description: "No verification needed"
-  - label: "Custom"
-    description: "I'll specify commands"
-```
-
-If user specifies commands, save to progress file header:
 ```bash
-# Replace the Verify: line in the progress file
-sed -i '' "s/^Verify:.*/Verify: ${COMMANDS}/" .claude/loop-progress/progress-${SESSION}.txt
+# Check if beads is initialized
+bd list 2>/dev/null || bd init
 ```
 
-Examples: `npm test && npm run typecheck`, `pytest`, `bundle exec rspec`, or any custom commands.
+### 7. Create Beads
 
-### 6. Create Beads
-
-For each story, create a bead with the `loop/{session-name}` tag:
-
+For each story:
 ```bash
 bd create \
-  --title="US-001: Story title" \
+  --title="Story title" \
   --type=task \
-  --assignee=agent \
-  --label=loop/{session-name}
+  --priority=2 \
+  --add-label="loop/{session-name}" \
+  --description="Description here" \
+  --acceptance="- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Tests pass"
 ```
 
-Then write the acceptance criteria to the bead body using `bd edit` or by editing the bead file directly at `.beads/beads-xxx.md`.
-
-**Dependencies:** Only add `bd dep add` when story B literally cannot be implemented without story A being complete. The agent will use judgment to pick the most logical next task from available beads.
-
-Example with dependency:
+**Dependencies:** Only add when story B literally cannot start without story A complete:
 ```bash
-# Create stories
-bd create --title="US-001: User model" --type=task --assignee=agent --label=loop/user-auth
-bd create --title="US-002: Password hashing" --type=task --assignee=agent --label=loop/user-auth
-bd create --title="US-003: Login endpoint" --type=task --assignee=agent --label=loop/user-auth
-
-# Login truly depends on User model
-bd dep add beads-003 beads-001
+bd dep add {story-b-id} {story-a-id}
 ```
 
-### 7. Confirm Output and Return Session Name
+The agent will use judgment to pick the logical next task. Don't over-specify dependencies.
 
-Show the user:
-- **Session name: `{session-name}`** ← This is the key output
-- Number of stories created
-- List beads: `bd list --label=loop/{session-name}`
+### 8. Confirm Output
 
-**IMPORTANT:** The session name must be clearly outputted so `/loop` can capture it for launching tmux.
-
-Example output:
 ```
-✅ Created 5 stories for session: user-auth
+✅ Created {N} beads for session: {session-name}
 
-Stories: bd list --label=loop/user-auth
-Ready:   bd ready --label=loop/user-auth
+View beads:    bd list --label=loop/{session-name}
+Ready to work: bd ready --label=loop/{session-name}
 
-Session name: user-auth
+Next steps:
+- Refine beads: /loop-agents:refine
+- Launch work loop: /loop-agents:loop
 ```
+
+**IMPORTANT:** The session name must be clearly outputted so other commands can use it.
 
 ## Story Sizing Guidelines
 
-A story is too big if:
-- It touches more than 3-4 files
-- It requires multiple unrelated changes
-- You can't describe it in one sentence
+**Too big:**
+- Touches more than 3-4 files
+- Requires multiple unrelated changes
+- Can't describe in one sentence
 
-A story is too small if:
-- It's just "create a file"
-- It can't be meaningfully tested
-- It's a sub-step of something else
+**Too small:**
+- Just "create a file"
+- Can't be meaningfully tested
+- Is a sub-step of something else
+
+**Just right:**
+- Clear deliverable
+- 15-60 minutes of work
+- Testable outcome
 
 ## Success Criteria
 
 - [ ] Found or created PRD to work from
-- [ ] Generated story list and got user "Go"
-- [ ] Every acceptance criterion is objectively verifiable
-- [ ] Test cases are explicit (not "write tests")
-- [ ] Verification commands included
-- [ ] Beads created with correct tag: `loop/{session-name}`
-- [ ] Dependencies added only where truly required
+- [ ] Story list approved by user
+- [ ] Every acceptance criterion is verifiable
+- [ ] Beads created with `loop/{session}` label
+- [ ] Dependencies only where truly required
+- [ ] Session name clearly communicated
