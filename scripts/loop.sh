@@ -85,7 +85,7 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   echo ""
 
   # Check if any work remains BEFORE starting iteration
-  REMAINING=$(bd ready --tag="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
+  REMAINING=$(bd ready --label="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
   if [ "$REMAINING" -eq 0 ]; then
     echo ""
     echo "All tasks complete!"

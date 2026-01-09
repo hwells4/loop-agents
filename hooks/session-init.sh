@@ -43,19 +43,35 @@ if [ "$LOOP_SESSIONS" -gt 0 ]; then
   echo "  Check:  tmux capture-pane -t SESSION -p | tail -20"
   echo "  Attach: tmux attach -t SESSION"
 
+  # Show ready beads for each running session
+  if command -v bd &> /dev/null; then
+    for session in $(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "^loop-" | sed 's/^loop-//'); do
+      READY_OUTPUT=$(bd ready --label="loop/$session" 2>/dev/null | grep "\[" | wc -l | tr -d ' ')
+      if [ "$READY_OUTPUT" -gt 0 ] 2>/dev/null; then
+        echo ""
+        echo "  Ready beads for loop-$session: $READY_OUTPUT"
+      fi
+    done
+  fi
+
   # Check for stale sessions (>2 hours)
   if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/skills/loops/scripts/warn-stale.sh" ]; then
     bash "$PLUGIN_ROOT/skills/loops/scripts/warn-stale.sh"
   fi
 fi
 
-# Check dependencies
+# Check dependencies and provide context
+DEPS_OK=true
 MISSING=""
+
 if ! command -v tmux &> /dev/null; then
   MISSING="$MISSING tmux"
+  DEPS_OK=false
 fi
+
 if ! command -v bd &> /dev/null; then
   MISSING="$MISSING beads(bd)"
+  DEPS_OK=false
 fi
 
 if [ -n "$MISSING" ]; then
@@ -63,4 +79,21 @@ if [ -n "$MISSING" ]; then
   echo "MISSING DEPENDENCIES:$MISSING"
   echo "  tmux: brew install tmux"
   echo "  bd:   brew install steveyegge/tap/bd"
+fi
+
+# Check if beads is initialized in this repo
+if command -v bd &> /dev/null; then
+  if ! bd list --limit 1 &> /dev/null; then
+    echo ""
+    echo "BEADS NOT INITIALIZED:"
+    echo "  Run: bd init"
+    echo "  This creates issues.json to track tasks for loop agents"
+    DEPS_OK=false
+  fi
+fi
+
+# Report status
+if [ "$DEPS_OK" = true ]; then
+  echo ""
+  echo "LOOP AGENTS READY: Dependencies OK, beads initialized"
 fi

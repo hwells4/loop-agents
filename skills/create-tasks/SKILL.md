@@ -18,7 +18,7 @@ Beads tagged with `loop/{session-name}` that an agent can execute autonomously:
 
 ```bash
 # Each story becomes a bead
-bd create --title="US-001: Story title" --type=task --assignee=agent --tag=loop/feature-name
+bd create --title="US-001: Story title" --type=task --assignee=agent --label=loop/feature-name
 
 # Body contains acceptance criteria
 ```
@@ -150,7 +150,7 @@ bd create \
   --title="US-001: Story title" \
   --type=task \
   --assignee=agent \
-  --tag=loop/{session-name}
+  --label=loop/{session-name}
 ```
 
 Then write the acceptance criteria to the bead body using `bd edit` or by editing the bead file directly at `.beads/beads-xxx.md`.
@@ -160,9 +160,9 @@ Then write the acceptance criteria to the bead body using `bd edit` or by editin
 Example with dependency:
 ```bash
 # Create stories
-bd create --title="US-001: User model" --type=task --assignee=agent --tag=loop/user-auth
-bd create --title="US-002: Password hashing" --type=task --assignee=agent --tag=loop/user-auth
-bd create --title="US-003: Login endpoint" --type=task --assignee=agent --tag=loop/user-auth
+bd create --title="US-001: User model" --type=task --assignee=agent --label=loop/user-auth
+bd create --title="US-002: Password hashing" --type=task --assignee=agent --label=loop/user-auth
+bd create --title="US-003: Login endpoint" --type=task --assignee=agent --label=loop/user-auth
 
 # Login truly depends on User model
 bd dep add beads-003 beads-001
@@ -173,7 +173,7 @@ bd dep add beads-003 beads-001
 Show the user:
 - **Session name: `{session-name}`** ← This is the key output
 - Number of stories created
-- List beads: `bd list --tag=loop/{session-name}`
+- List beads: `bd list --label=loop/{session-name}`
 
 **IMPORTANT:** The session name must be clearly outputted so `/loop` can capture it for launching tmux.
 
@@ -181,8 +181,8 @@ Example output:
 ```
 ✅ Created 5 stories for session: user-auth
 
-Stories: bd list --tag=loop/user-auth
-Ready:   bd ready --tag=loop/user-auth
+Stories: bd list --label=loop/user-auth
+Ready:   bd ready --label=loop/user-auth
 
 Session name: user-auth
 ```

@@ -53,7 +53,7 @@ If running scripts directly (instead of via `/loop-agents:loop`):
 .claude/loop-agents/scripts/loop.sh 50 my-feature
 
 # Check remaining work
-bd ready --tag=loop/my-feature
+bd ready --label=loop/my-feature
 ```
 
 ## Multi-Agent Support
@@ -78,7 +78,7 @@ Each session:
 
 Each iteration:
 1. Agent reads progress file for context
-2. Lists available tasks: `bd ready --tag=loop/{session}`
+2. Lists available tasks: `bd ready --label=loop/{session}`
 3. Uses judgment to pick the most logical next task
 4. Claims the task: `bd update <id> --status=in_progress`
 5. Implements and verifies

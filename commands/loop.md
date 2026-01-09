@@ -164,7 +164,7 @@ tmux new-session -d -s "loop-$SESSION_NAME" -c "$(pwd)" ".claude/loop-agents/scr
 ║  Running autonomously ({iterations} iterations max)        ║
 ║                                                            ║
 ║  Check progress:                                           ║
-║    bd ready --tag=loop/{session-name}                      ║
+║    bd ready --label=loop/{session-name}                      ║
 ║    tmux capture-pane -t loop-{session-name} -p | tail -20  ║
 ║                                                            ║
 ║  Commands:                                                 ║
@@ -203,7 +203,7 @@ This keeps things quick and interactive - user clicks an option or types somethi
 ### /loop status
 ```bash
 tmux list-sessions 2>/dev/null | grep "^loop-" || echo "No loop sessions running"
-bd ready --tag=loop/ 2>/dev/null | head -10
+bd ready --label=loop/ 2>/dev/null | head -10
 ```
 
 ### /loop attach NAME

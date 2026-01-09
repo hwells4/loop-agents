@@ -27,7 +27,7 @@ tmux capture-pane -t loop-NAME -p -S -1000
 SESSION_TAG="${NAME#loop-}"
 
 # Check remaining beads
-bd ready --tag="loop/$SESSION_TAG" 2>/dev/null | wc -l
+bd ready --label="loop/$SESSION_TAG" 2>/dev/null | wc -l
 # 0 = complete, >0 = work remaining
 
 # Check for completion signal in output
@@ -58,7 +58,7 @@ Show summary:
 Session: loop-NAME
 Status:  Running / Complete / Possibly stuck
 Runtime: ~X hours
-Stories remaining: bd ready --tag=loop/SESSION_TAG | wc -l
+Stories remaining: bd ready --label=loop/SESSION_TAG | wc -l
 Last output: [last 3 lines]
 ```
 

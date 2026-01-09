@@ -33,10 +33,10 @@ if [ ! -f "$PROGRESS_FILE" ]; then
 fi
 
 # Check if any work exists
-REMAINING=$(bd ready --tag="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
+REMAINING=$(bd ready --label="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
 if [ "$REMAINING" -eq 0 ]; then
   echo "No stories found for session: $SESSION_NAME"
-  echo "Create stories first with: bd create --tag=loop/$SESSION_NAME ..."
+  echo "Create stories first with: bd create --label=loop/$SESSION_NAME ..."
   exit 1
 fi
 
@@ -60,9 +60,9 @@ echo "════════════════════════�
 # Check for completion signal
 if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
   echo "Agent signaled completion"
-  echo "All tasks done - check: bd list --tag=loop/$SESSION_NAME"
+  echo "All tasks done - check: bd list --label=loop/$SESSION_NAME"
 else
-  REMAINING_AFTER=$(bd ready --tag="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
+  REMAINING_AFTER=$(bd ready --label="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
   echo "Agent completed one iteration"
   echo "$REMAINING_AFTER stories remaining"
   echo "Review progress: cat $PROGRESS_FILE"

@@ -15,7 +15,7 @@ PRD → Stories/Beads → tmux session → Fresh Claude per iteration → Progre
 
 Each iteration:
 1. Reads progress file for accumulated context
-2. Picks next available bead (`bd ready --tag=loop/{session}`)
+2. Picks next available bead (`bd ready --label=loop/{session}`)
 3. Implements and verifies (tests must pass)
 4. Commits with detailed message
 5. Closes bead and appends results to progress file

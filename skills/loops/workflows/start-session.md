@@ -91,7 +91,7 @@ Display:
 ║  Detach:   Ctrl+b, then d                                ║
 ║  Kill:     tmux kill-session -t loop-NAME                ║
 ║                                                          ║
-║  Beads:    bd ready --tag=loop/SESSION_TAG               ║
+║  Beads:    bd ready --label=loop/SESSION_TAG               ║
 ║  Progress: cat .claude/loop-progress/progress-SESSION_TAG.txt ║
 ║                                                          ║
 ║  ⚠️  Remember to check on this session!                   ║

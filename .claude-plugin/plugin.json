@@ -2,6 +2,7 @@
   "name": "loop-agents",
   "description": "Autonomous multi-task execution with context-preserving loops",
   "version": "1.0.0",
+  "hooks": "hooks/hooks.json",
   "author": {
     "name": "Harrison Wells",
     "url": "https://github.com/hwells4"

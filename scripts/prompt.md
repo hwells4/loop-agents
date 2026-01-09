@@ -14,7 +14,7 @@ Progress file: ${PROGRESS_FILE}
 
 2. **List available stories** for this session:
    ```bash
-   bd ready --tag=loop/${SESSION_NAME}
+   bd ready --label=loop/${SESSION_NAME}
    ```
 
 3. **Choose the most logical next story** based on:
@@ -71,7 +71,7 @@ If no verification commands specified, skip this step.
 
 Check if any work remains:
 ```bash
-bd ready --tag=loop/${SESSION_NAME}
+bd ready --label=loop/${SESSION_NAME}
 ```
 
 If no stories returned (empty output), all work is complete:
