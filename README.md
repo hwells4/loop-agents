@@ -19,13 +19,7 @@ An iteration of the [Ralph Wiggum loop](https://ghuntley.com/ralph/) pattern - a
 /plugin marketplace add hwells4/loop-agents
 
 # Install the plugin
-/plugin install loop-agents
-```
-
-Or install directly from GitHub:
-
-```bash
-/plugin install github:hwells4/loop-agents
+/plugin install loop-agents@loop-agents-marketplace
 ```
 
 ## Dependencies
