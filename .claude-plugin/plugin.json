@@ -2,7 +2,6 @@
   "name": "loop-agents",
   "description": "Create and manage autonomous Loop Agents in Claude Code",
   "version": "1.0.0",
-  "hooks": "hooks/hooks.json",
   "author": {
     "name": "Harrison Wells",
     "url": "https://github.com/hwells4"
