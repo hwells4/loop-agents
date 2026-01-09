@@ -19,26 +19,6 @@ Execute phases adaptively based on context. Always use `AskUserQuestion` for int
 
 ---
 
-## PHASE 0: Environment Setup (Non-blocking)
-
-**IMMEDIATELY** spawn a background subagent to verify the environment:
-
-```
-Task(subagent_type="Bash", run_in_background=true, prompt="
-Check and setup loop-agents environment:
-1. Check if .claude/loop-agents symlink exists and points to valid location
-2. If missing, create: mkdir -p .claude && ln -sf \${CLAUDE_PLUGIN_ROOT} .claude/loop-agents
-3. Check tmux is installed (command -v tmux)
-4. Check beads CLI is installed (command -v bd)
-5. If anything missing, report what needs to be installed
-Exit silently if all good.
-")
-```
-
-**Do not wait for this to complete.** Continue immediately to Phase 1.
-
----
-
 ## ADAPTIVE EXECUTION
 
 **Key principle:** Be intelligent about what's needed. Skip phases that aren't necessary. Always use `AskUserQuestion` with an "Other" option so users can type custom responses quickly.
