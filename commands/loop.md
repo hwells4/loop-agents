@@ -1,5 +1,5 @@
 ---
-description: Launch autonomous loops - plan work, break into tasks, run in background
+description: Plan, launch, and monitor autonomous loop agents
 hooks:
   PreToolUse:
     - matcher: "*"
