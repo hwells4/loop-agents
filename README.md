@@ -1,22 +1,40 @@
 # Loop Agents
 
-A Claude Code plugin for autonomous multi-task execution through iterative loops.
+A Claude Code plugin for building and running [Ralph loops](https://ghuntley.com/ralph/).
 
-## The Problem
+## What This Is
 
-Long-running AI agent sessions suffer from **context degradation**—as context windows fill up, the agent loses access to earlier information, makes inconsistent decisions, and produces lower-quality work. Manual checkpointing is tedious and error-prone.
+Ralph loops let AI agents work through tasks iteratively, with fresh context each time. Loop Agents makes them practical:
 
-## The Solution
+- **Background execution** - Loops run in tmux sessions, not your terminal. Attach, detach, let them run overnight.
+- **Multiple loops at once** - Spin up several loops for different features. They don't conflict.
+- **Planning workflow** - Describe what you want, get a PRD and task breakdown, then run the loop.
+- **Pipelines** - Chain loops together. Refine a plan, then refine the tasks, then implement.
 
-Loop Agents solves this by spawning **fresh Claude instances for each task** while preserving accumulated knowledge in progress files. Each iteration starts clean, reads what came before, does focused work, and hands off to the next iteration.
+## Build Your Own Loop Agents
 
-This is an evolution of the [Ralph Wiggum loop](https://ghuntley.com/ralph/) pattern, enhanced with:
+Loop Agents is also a framework for creating custom loop types. Each loop agent has:
 
-- **Claude Code as orchestrator** - Describe your work and Claude handles planning, task breakdown, and loop management
-- **Background execution** - Loops run in tmux sessions, independent of your active Claude session
-- **Intelligent stopping** - Loops stop when work is done, not after arbitrary iteration counts
-- **Multi-loop support** - Run several independent loops simultaneously without conflicts
-- **Desktop notifications** - Get alerted when loops complete (macOS/Linux)
+- A **prompt** that tells Claude what to do each iteration
+- A **completion strategy** that decides when to stop
+
+Built-in completion strategies:
+
+| Strategy | When it stops | Good for |
+|----------|---------------|----------|
+| `beads-empty` | All tasks done | Implementation loops |
+| `plateau` | Two agents agree quality plateaued | Refinement, bug hunting |
+| `fixed-n` | After N iterations | Brainstorming, batch processing |
+| `all-items` | After processing each item | Review loops |
+
+**Example:** You want a bug-fix loop that keeps finding and fixing bugs until it stops finding new ones. Create a loop with `completion: plateau`. Run it with max 15 iterations. It might stop at 7 when two consecutive runs agree there's nothing left to fix.
+
+Scaffold a new loop in seconds:
+```bash
+/loop-agents:build-loop bugfix
+```
+
+This creates `scripts/loops/bugfix/` with a config and prompt template. Edit the prompt, pick your completion strategy, done.
 
 ## Installation
 
@@ -139,28 +157,9 @@ Use `/ideate` to generate improvement ideas. The agent:
 3. Evaluates each: Impact (1-5), Effort (1-5), Risk (1-5)
 4. Winnows to top 5 and saves to `docs/ideas.md`
 
-## Intelligent Stopping
+## How Plateau Detection Works
 
-Traditional loops run for a fixed number of iterations. Loop Agents uses **intelligent completion strategies** that stop when work is actually done.
-
-### Completion Strategies
-
-| Strategy | How It Works | Used By |
-|----------|--------------|---------|
-| **beads-empty** | Stops when no beads remain | work |
-| **plateau** | Stops when two agents agree quality has plateaued | improve-plan, refine-beads |
-| **fixed-n** | Stops after N iterations | idea-wizard |
-| **all-items** | Stops after iterating through all items | (custom loops) |
-
-### Two-Agent Confirmation
-
-The plateau strategy prevents single-agent blind spots:
-
-1. Each agent outputs a judgment: `PLATEAU: true/false` with reasoning
-2. The loop **only stops** when two consecutive agents both say `PLATEAU: true`
-3. If the second agent finds real issues, the counter resets
-
-This ensures no single agent can prematurely stop a loop. Both must independently confirm the work is done.
+The `plateau` completion strategy requires **two consecutive agents to agree** before stopping. This prevents single-agent blind spots.
 
 ```
 Agent 1: "PLATEAU: true - plan covers all requirements"
@@ -169,9 +168,7 @@ Agent 3: "PLATEAU: true - added error handling, plan complete"
 Agent 4: "PLATEAU: true - confirmed, nothing to add"  ← loop stops
 ```
 
-### Pre-Iteration Checks
-
-The work loop uses `check_before: true` to verify beads exist **before** starting an iteration. This prevents wasted work when all tasks are already complete.
+No single agent can prematurely stop a loop. Both must independently confirm the work is done.
 
 ## Pipelines
 
@@ -310,29 +307,24 @@ JSON files track iteration history for completion checks:
 
 ## Multi-Session Support
 
-Run multiple loops simultaneously—each has isolated:
-- Beads (via `loop/{session}` label)
-- Progress file
-- State file
-- tmux session
+Run multiple loops simultaneously. Each has isolated beads, progress, state, and tmux session:
 
 ```bash
-# These run independently
-loop-auth      → beads tagged loop/auth
-loop-dashboard → beads tagged loop/dashboard
+loop-auth      # beads tagged loop/auth
+loop-dashboard # beads tagged loop/dashboard
 ```
 
 ## Notifications
 
-When a loop completes or hits max iterations:
-- **macOS**: Native notification center (via `osascript`)
+When a loop completes:
+- **macOS**: Native notification center
 - **Linux**: `notify-send` (requires `libnotify`)
 
-All completions are logged to `.claude/loop-completions.json` for retrieval.
+All completions logged to `.claude/loop-completions.json`.
 
 ## Environment Variables
 
-Loops export these for use by hooks and prompts:
+Loops export these for hooks and prompts:
 
 | Variable | Description |
 |----------|-------------|
@@ -340,33 +332,9 @@ Loops export these for use by hooks and prompts:
 | `CLAUDE_LOOP_SESSION` | Current session name |
 | `CLAUDE_LOOP_TYPE` | Current loop type |
 
-## Creating Custom Loops
-
-Use `/loop-agents:build-loop` to scaffold a new loop type:
-
-```bash
-/loop-agents:build-loop myloop
-```
-
-This creates:
-- `scripts/loops/myloop/loop.yaml` - Configuration
-- `scripts/loops/myloop/prompt.md` - Agent instructions
-
-Configure the completion strategy, delay, and any output parsing in `loop.yaml`.
-
-## Design Principles
-
-1. **Fresh context per iteration** - Each Claude instance starts with a clean context window, preventing degradation
-2. **Accumulated knowledge via files** - Progress files preserve learnings across iterations without consuming context
-3. **Agent judgment over thresholds** - Agents decide when work is done, not arbitrary iteration counts
-4. **Two-agent confirmation** - No single agent can stop a refinement loop—both must agree
-5. **Background independence** - Loops survive Claude Code crashes and don't block your terminal
-6. **Files in your project** - All state lives in your project directory, not the plugin
-
 ## Limitations
 
-- **Local execution**: tmux sessions are local—if your machine sleeps, loops pause. Use a keep-awake utility for async work.
-- **No remote execution**: Loops run on your machine, not in the cloud.
+Loops run locally in tmux. If your machine sleeps, they pause. Use a keep-awake utility for overnight runs.
 
 ## License
 
