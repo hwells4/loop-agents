@@ -4,7 +4,7 @@
   "description": "Autonomous multi-task execution with context-preserving loops",
   "owner": {
     "name": "Harrison Wells",
-    "email": "hwells4@github.com"
+    "email": "harrison@dododigital.ai"
   },
   "plugins": [
     {
@@ -13,7 +13,7 @@
       "version": "1.0.0",
       "author": {
         "name": "Harrison Wells",
-        "email": "hwells4@github.com"
+        "email": "harrison@dododigital.ai"
       },
       "source": "./",
       "category": "development",
