@@ -1,0 +1,11 @@
+# Improve Plan Loop - Iteratively refine a plan document
+# Runs until changes plateau
+
+name: improve-plan
+description: Iteratively improve a plan document until changes plateau
+completion: plateau
+plateau_threshold: 2
+min_iterations: 2
+low_change_max: 2
+delay: 2
+output_parse: changes:CHANGES summary:SUMMARY

@@ -1,0 +1,12 @@
+# Refine Beads Loop - Iteratively improve beads
+# Runs until changes plateau
+
+name: refine-beads
+description: Iteratively refine beads (titles, descriptions, acceptance criteria)
+completion: plateau
+plateau_threshold: 2
+min_iterations: 3
+low_change_max: 1
+delay: 3
+output_parse: changes:CHANGES summary:SUMMARY
+prompt: bead-refiner

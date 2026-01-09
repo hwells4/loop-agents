@@ -1,0 +1,12 @@
+# Quick Refine Pipeline
+# Fast pass through plan and beads
+
+name: quick-refine
+description: Quick planning refinement (fewer iterations)
+
+steps:
+  - loop: improve-plan
+    max: 3
+
+  - loop: refine-beads
+    max: 3

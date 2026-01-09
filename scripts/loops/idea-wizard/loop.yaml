@@ -1,0 +1,7 @@
+# Idea Wizard Loop - Generate improvement ideas
+# One-shot by default, but can run multiple times for diverse ideas
+
+name: idea-wizard
+description: Generate creative improvement ideas for the project
+completion: fixed-n
+delay: 1

@@ -1,0 +1,12 @@
+# Deep Refine Pipeline
+# More iterations for thorough refinement
+
+name: deep-refine
+description: Thorough planning refinement with more iterations
+
+steps:
+  - loop: improve-plan
+    max: 8
+
+  - loop: refine-beads
+    max: 8

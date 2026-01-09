@@ -1,0 +1,12 @@
+# Full Refine Pipeline
+# Improves plan, then refines beads
+
+name: full-refine
+description: Complete planning refinement - plan first, then beads
+
+steps:
+  - loop: improve-plan
+    max: 5
+
+  - loop: refine-beads
+    max: 5
