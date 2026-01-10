@@ -1,187 +1,136 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with this plugin.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Overview
+## What This Is
 
-Loop Agents is a Claude Code plugin that enables autonomous, multi-task execution through iterative loops. It solves context degradation in long-running AI sessions by spawning fresh Claude instances for each task while preserving accumulated context.
-
-## Installation
-
-```bash
-# Install as Claude Code plugin
-claude plugins install loop-agents
-```
-
-This installs to `.claude/loop-agents/` in your project.
-
-## Dependencies
-
-**Required:**
-- `tmux` - Terminal multiplexer for background execution
-- `beads (bd)` - Task management CLI (`brew install steveyegge/tap/bd`)
-- `jq` - JSON processing (for state management)
-
-## Project Conventions
-
-When using this plugin, the following directories are created in YOUR project:
-
-| Location | Purpose |
-|----------|---------|
-| `docs/plans/` | PRDs and planning documents |
-| `.claude/loop-progress/` | Progress files (accumulated context per session) |
-| `.claude/loop-state-*.json` | State files (iteration history) |
-| `.claude/pipelines/` | Pipeline definitions (YAML) |
-| `.claude/pipeline-runs/` | Pipeline execution outputs |
-| `.beads/` | Beads database (created by `bd init`) |
+Loop Agents is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for Claude Code. It runs autonomous, multi-iteration agent workflows in tmux sessions. Each iteration spawns a fresh Claude instance that reads accumulated progress to maintain context without degradation.
 
 ## Commands
 
-### Primary Commands
 ```bash
-/loop-agents:loop              # Orchestration & management: decide what to do, check status
-/loop-agents:work              # Run work loop: implement tasks from beads
-/loop-agents:refine            # Run refinement loops: improve plans and beads
-/loop-agents:ideate            # Generate improvement ideas (one-shot)
+# Run a loop directly
+./scripts/run.sh loop work auth 25        # work loop, session "auth", max 25 iterations
+./scripts/run.sh loop improve-plan my-session 5
+
+# Run a pipeline (chains loops together)
+./scripts/run.sh pipeline full-refine.yaml my-session
+
+# List available loops/pipelines
+./scripts/run.sh
 ```
 
-### Loop Management
-```bash
-/loop-agents:loop status       # Check all running loops
-/loop-agents:loop attach NAME  # Watch live (Ctrl+b, d to detach)
-/loop-agents:loop kill NAME    # Stop a session
-/loop-agents:loop plan         # Plan a new feature (PRD → beads)
-```
-
-### Pipeline Commands
-```bash
-/loop-agents:pipeline          # Create and run multi-stage pipelines
-/loop-agents:pipeline create   # Design a new pipeline
-/loop-agents:pipeline run      # Execute an existing pipeline
-/loop-agents:pipeline status   # Check running pipeline status
-```
-
-### Supporting Skills
-```bash
-/loop-agents:create-prd        # Generate product requirements document
-/loop-agents:create-tasks      # Break PRD into beads
-/loop-agents:build-loop        # Scaffold a new loop type
-```
+Dependencies: `jq`, `claude`, `tmux`, `bd` (beads CLI)
 
 ## Architecture
 
-### Directory Structure
-
 ```
-.claude/loop-agents/scripts/
-├── loops/                     # Loop engine + loop types
-│   ├── engine.sh              # Core loop runner
-│   ├── run.sh                 # ./run.sh <type> [session] [max]
-│   ├── lib/                   # Shared utilities
-│   ├── completions/           # Stop conditions
-│   ├── work/                  # Loop type: implementation
-│   ├── improve-plan/          # Loop type: plan refinement
-│   ├── refine-beads/          # Loop type: bead refinement
-│   └── idea-wizard/           # Loop type: idea generation
-│
-└── pipelines/                 # Pipeline engine + definitions
-    ├── run.sh                 # ./run.sh <pipeline.yaml> [session]
-    ├── lib/                   # Parsing, resolution, providers
-    ├── SCHEMA.md              # Pipeline schema reference
-    └── *.yaml                 # Pipeline definitions
-```
+scripts/
+├── engine.sh                 # Unified orchestrator (loops + pipelines)
+├── run.sh                    # Entry point wrapper
+├── lib/                      # Shared utilities
+│   ├── yaml.sh               # YAML→JSON conversion
+│   ├── state.sh              # JSON iteration history
+│   ├── progress.sh           # Accumulated context files
+│   ├── resolve.sh            # Template variable resolution
+│   ├── parse.sh              # Claude output parsing
+│   ├── notify.sh             # Desktop notifications + logging
+│   └── completions/          # Stopping strategies
+│       ├── beads-empty.sh    # Stop when no beads remain
+│       ├── plateau.sh        # Stop when 2 agents agree
+│       ├── fixed-n.sh        # Stop after N iterations
+│       └── all-items.sh      # Stop after processing items
+├── loops/                    # Loop type definitions
+│   ├── work/                 # Implementation (beads-empty)
+│   ├── improve-plan/         # Plan refinement (plateau)
+│   ├── refine-beads/         # Bead refinement (plateau)
+│   └── idea-wizard/          # Ideation (fixed-n)
+└── pipelines/                # Multi-stage workflows
+    └── *.yaml
 
-### Loop Types
-
-| Loop | Purpose | Stops When |
-|------|---------|------------|
-| `work` | Implement tasks from beads | All beads complete |
-| `improve-plan` | Refine planning docs | Two agents agree it's ready |
-| `refine-beads` | Improve bead quality | Two agents agree it's ready |
-| `idea-wizard` | Generate ideas | Fixed iterations (usually 1) |
-
-### Intelligent Plateau Detection
-
-Loops don't stop based on arbitrary thresholds. Instead:
-1. Each agent makes a judgment: `PLATEAU: true/false` with reasoning
-2. **Two consecutive agents must agree** before stopping
-3. If the second agent finds real issues, the counter resets
-
-This prevents single-agent blind spots and premature stopping.
-
-### Pipeline Orchestrator
-
-The orchestrator coordinates multi-stage pipelines with fan-out/fan-in:
-
-```
-.claude/loop-agents/scripts/
-├── pipelines/
-│   ├── run.sh             # Pipeline runner
-│   ├── lib/               # Parsing, resolution, providers
-│   ├── templates/         # Example pipelines
-│   └── SCHEMA.md          # Pipeline schema reference
+skills/                       # Claude Code skill extensions
+commands/                     # Slash command documentation
 ```
 
-**Pipeline capabilities:**
-- **Fan-out:** Run N times with different perspectives, aggregate results
-- **Fan-in:** Next stage receives all outputs via `${INPUTS.stage-name}`
-- **Completion strategies:** `plateau`, `beads-empty`, or fixed runs
-- **Variable substitution:** `${SESSION}`, `${INDEX}`, `${PERSPECTIVE}`, `${OUTPUT}`, `${PROGRESS}`
+## Core Concepts
 
+### Loops
+
+A loop = prompt template + completion strategy. Each iteration:
+1. Resolves template variables (`${SESSION}`, `${ITERATION}`, `${PROGRESS_FILE}`, etc.)
+2. Executes Claude with resolved prompt
+3. Parses output for structured fields
+4. Updates state file with results
+5. Checks completion condition → stop or continue
+
+### State vs Progress Files
+
+**State file** (`.claude/loop-state-{session}.json`): JSON tracking iteration history for completion checks
+```json
+{"session": "auth", "iteration": 5, "history": [{"plateau": false}, {"plateau": true}]}
+```
+
+**Progress file** (`.claude/loop-progress/progress-{session}.txt`): Markdown with accumulated learnings. Fresh Claude reads this each iteration to maintain context.
+
+### Completion Strategies
+
+| Strategy | Implementation | Used By |
+|----------|----------------|---------|
+| `beads-empty` | Checks `bd ready --label=loop/{session}` returns 0 | work loop |
+| `plateau` | Requires 2 consecutive agents to output `PLATEAU: true` | improve-plan, refine-beads |
+| `fixed-n` | Runs exactly N iterations | idea-wizard |
+| `all-items` | Processes each item in a list | batch processing |
+
+### Pipelines
+
+Chain loops together. Each stage's outputs become `${INPUTS}` for the next:
 ```yaml
-# .claude/pipelines/code-review.yaml
-name: code-review
 stages:
-  - name: review
-    runs: 4
-    perspectives: [security, performance, clarity, testing]
-    prompt: |
-      Review from ${PERSPECTIVE} perspective.
-      Write to ${OUTPUT}
-
-  - name: synthesize
-    runs: 1
-    prompt: |
-      Combine reviews: ${INPUTS.review}
-      Write to ${OUTPUT}
+  - name: plan
+    loop: improve-plan
+    runs: 5
+  - name: beads
+    loop: refine-beads
+    runs: 5
 ```
 
-> **Note:** Runs execute sequentially. `parallel: true` is a schema hint for future implementation.
+## Template Variables
 
-## Workflow
+| Variable | Description |
+|----------|-------------|
+| `${SESSION}` / `${SESSION_NAME}` | Session name |
+| `${ITERATION}` | 1-based iteration number |
+| `${INDEX}` | 0-based iteration index |
+| `${PROGRESS}` / `${PROGRESS_FILE}` | Path to progress file |
+| `${OUTPUT}` | Path to write output (pipelines) |
+| `${INPUTS}` | Previous stage outputs (pipelines) |
+| `${INPUTS.stage-name}` | Named stage outputs (pipelines) |
 
-### Typical Flow
+## Creating a New Loop
 
+1. Create directory: `scripts/loops/{name}/`
+2. Add `loop.yaml`:
+```yaml
+name: my-loop
+description: What this loop does
+completion: plateau      # beads-empty, plateau, fixed-n, all-items
+delay: 3                 # seconds between iterations
+min_iterations: 2        # for plateau: don't check before this
+output_parse: plateau:PLATEAU reasoning:REASONING  # extract from output
 ```
-1. /loop-agents:loop plan (or /loop-agents:create-prd + /loop-agents:create-tasks)
-   ├── Gather context (adaptive questioning)
-   ├── Generate PRD → docs/plans/{date}-{slug}-prd.md
-   └── Create beads tagged loop/{session}
+3. Add `prompt.md` with template using variables above
 
-2. (Optional) /loop-agents:refine
-   ├── improve-plan loop polishes the PRD
-   └── refine-beads loop improves task definitions
+## Key Patterns
 
-3. /loop-agents:work
-   ├── Launches work loop in tmux
-   ├── Each iteration: pick bead → implement → test → commit → close
-   ├── Progress accumulates in .claude/loop-progress/
-   └── Stops when all beads complete
-```
+**Fresh agent per iteration**: Avoids context degradation. Each Claude reads the progress file for accumulated context.
 
-### Multi-Session Support
+**Two-agent consensus** (plateau): Prevents single-agent blind spots. Both must independently confirm completion.
 
-Run multiple loops simultaneously:
-```bash
-# Each session has separate beads and progress
-loop-auth      → beads tagged loop/auth
-loop-dashboard → beads tagged loop/dashboard
-```
+**Beads integration**: Work loop uses `bd` CLI to list/claim/close tasks. Beads are tagged with `loop/{session}`.
 
-## Design Principles
+## Environment Variables
 
-1. **Fresh context per iteration** - Each Claude instance starts clean
-2. **Accumulated context via files** - Progress file preserves learnings
-3. **Agent judgment over thresholds** - Agents decide when work is done
-4. **Two-agent confirmation** - No single agent can stop a loop
-5. **Plugin operates on YOUR project** - Creates files in your project, not the plugin
+Loops export:
+- `CLAUDE_LOOP_AGENT=1` - Always true inside a loop
+- `CLAUDE_LOOP_SESSION` - Current session name
+- `CLAUDE_LOOP_TYPE` - Current loop type
