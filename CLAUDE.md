@@ -31,6 +31,8 @@ When using this plugin, the following directories are created in YOUR project:
 | `docs/plans/` | PRDs and planning documents |
 | `.claude/loop-progress/` | Progress files (accumulated context per session) |
 | `.claude/loop-state-*.json` | State files (iteration history) |
+| `.claude/pipelines/` | Pipeline definitions (YAML) |
+| `.claude/pipeline-runs/` | Pipeline execution outputs |
 | `.beads/` | Beads database (created by `bd init`) |
 
 ## Commands
@@ -49,6 +51,14 @@ When using this plugin, the following directories are created in YOUR project:
 /loop-agents:loop attach NAME  # Watch live (Ctrl+b, d to detach)
 /loop-agents:loop kill NAME    # Stop a session
 /loop-agents:loop plan         # Plan a new feature (PRD → beads)
+```
+
+### Pipeline Commands
+```bash
+/loop-agents:pipeline          # Create and run multi-stage pipelines
+/loop-agents:pipeline create   # Design a new pipeline
+/loop-agents:pipeline run      # Execute an existing pipeline
+/loop-agents:pipeline status   # Check running pipeline status
 ```
 
 ### Supporting Skills
@@ -103,9 +113,47 @@ Loops don't stop based on arbitrary thresholds. Instead:
 
 This prevents single-agent blind spots and premature stopping.
 
-### Pipelines
+### Pipeline Orchestrator
 
-Chain multiple loops in sequence:
+The orchestrator coordinates multi-stage pipelines with fan-out/fan-in:
+
+```
+.claude/loop-agents/scripts/
+├── orchestrator/
+│   ├── run.sh             # Pipeline runner
+│   ├── lib/               # Parsing, resolution, providers
+│   ├── templates/         # Example pipelines
+│   └── SCHEMA.md          # Pipeline schema reference
+```
+
+**Pipeline capabilities:**
+- **Fan-out:** Run N times in parallel with different perspectives
+- **Fan-in:** Aggregate results from previous stage
+- **Completion strategies:** `plateau`, `beads-empty`, or fixed runs
+- **Multi-provider:** Claude Code, Codex, Gemini
+
+```yaml
+# .claude/pipelines/code-review.yaml
+name: code-review
+stages:
+  - name: review
+    runs: 4
+    parallel: true
+    perspectives: [security, performance, clarity, testing]
+    prompt: |
+      Review from ${PERSPECTIVE} perspective.
+      Write to ${OUTPUT}
+
+  - name: synthesize
+    runs: 1
+    prompt: |
+      Combine reviews: ${INPUTS.review}
+      Write to ${OUTPUT}
+```
+
+### Legacy Pipelines
+
+Chain multiple loops in sequence (simpler, for refinement):
 
 ```yaml
 # pipelines/full-refine.yaml

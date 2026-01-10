@@ -1,0 +1,126 @@
+# Code Review Pipeline
+# Multi-perspective code review with synthesis and optional fixes
+
+name: code-review
+description: Review code from multiple perspectives, synthesize findings, optionally fix issues
+version: 1
+
+defaults:
+  provider: claude-code
+  model: sonnet
+
+stages:
+  # Stage 1: Gather context about what changed
+  - name: gather-context
+    description: Identify changed files and understand the scope
+    runs: 1
+    prompt: |
+      Explore the codebase to understand recent changes.
+
+      Run `git diff HEAD~5` or `git status` to see what's changed.
+      Identify:
+      - Key files that were modified
+      - The nature of the changes (feature, fix, refactor)
+      - Any patterns or areas of concern
+
+      Write your findings to: ${OUTPUT}
+
+  # Stage 2: Multi-perspective review (fan-out)
+  - name: review
+    description: Review from 4 different perspectives in parallel
+    runs: 4
+    parallel: true
+    model: sonnet
+    perspectives:
+      - security vulnerabilities and data handling
+      - performance implications and efficiency
+      - code clarity, maintainability, and patterns
+      - test coverage and edge cases
+    prompt: |
+      You are code reviewer #${INDEX}, focusing on: ${PERSPECTIVE}
+
+      Context from previous analysis:
+      ${INPUTS.gather-context}
+
+      Review the codebase from your perspective. Be thorough but concise.
+      Focus on actionable findings, not style nitpicks.
+
+      Format your output as:
+      ## ${PERSPECTIVE} Review
+
+      ### Critical Issues
+      - ...
+
+      ### Recommendations
+      - ...
+
+      ### Notes
+      - ...
+
+      Write to: ${OUTPUT}
+
+  # Stage 3: Synthesize all reviews (fan-in)
+  - name: synthesize
+    description: Combine all reviews into prioritized action items
+    runs: 1
+    model: opus
+    prompt: |
+      You have received 4 code reviews from different perspectives.
+
+      Reviews:
+      ${INPUTS.review}
+
+      Synthesize these into a single prioritized report:
+
+      1. Deduplicate overlapping findings
+      2. Prioritize by severity (Critical > High > Medium > Low)
+      3. Group related issues together
+      4. Provide clear, actionable recommendations
+
+      Format:
+      ## Code Review Summary
+
+      ### Critical (fix before merge)
+      ...
+
+      ### High Priority
+      ...
+
+      ### Medium Priority
+      ...
+
+      ### Low Priority / Nice to Have
+      ...
+
+      ### Overall Assessment
+      [Ready to merge / Needs work / Major concerns]
+
+      Write to: ${OUTPUT}
+
+  # Stage 4: Optional - Fix issues iteratively
+  - name: fix-issues
+    description: Iteratively fix identified issues
+    runs: 10
+    completion: plateau
+    prompt: |
+      Read the code review synthesis:
+      ${INPUTS.synthesize}
+
+      Read your progress so far:
+      ${PROGRESS}
+
+      Pick the highest priority unfixed issue and fix it:
+      1. Read the relevant code
+      2. Make the fix
+      3. Verify it works
+      4. Commit with a descriptive message
+
+      Update ${PROGRESS} with:
+      - What you fixed
+      - Files changed
+      - Any follow-up notes
+
+      After fixing, assess:
+      PLATEAU: true (if remaining issues are minor/cosmetic OR you've fixed all critical/high issues)
+      PLATEAU: false (if significant issues remain)
+      REASONING: [Your reasoning]

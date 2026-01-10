@@ -1,0 +1,132 @@
+# Research and Implement Pipeline
+# Research a topic/codebase, plan implementation, then execute
+
+name: research-implement
+description: Research, plan, and implement a feature or change
+version: 1
+
+defaults:
+  provider: claude-code
+  model: sonnet
+
+stages:
+  # Stage 1: Deep research
+  - name: research
+    description: Thoroughly research the codebase and requirements
+    runs: 1
+    model: opus
+    prompt: |
+      Research phase for: ${SESSION}
+
+      Your goal is to deeply understand:
+      1. The existing codebase architecture
+      2. Relevant patterns and conventions
+      3. Dependencies and constraints
+      4. Similar implementations to reference
+
+      Explore the codebase thoroughly:
+      - Find relevant files and patterns
+      - Understand the data flow
+      - Identify integration points
+      - Note any gotchas or considerations
+
+      Write a comprehensive research document to: ${OUTPUT}
+
+      Include:
+      ## Architecture Overview
+      ## Relevant Files
+      ## Patterns to Follow
+      ## Dependencies
+      ## Constraints & Considerations
+      ## Reference Implementations
+
+  # Stage 2: Create implementation plan
+  - name: plan
+    description: Create a detailed implementation plan
+    runs: 1
+    model: opus
+    prompt: |
+      Based on this research:
+      ${INPUTS.research}
+
+      Create a detailed implementation plan.
+
+      The plan should:
+      1. Break work into small, atomic tasks
+      2. Order tasks by dependency (what must come first)
+      3. Identify risks and mitigations
+      4. Estimate complexity (not time)
+
+      Format:
+      ## Implementation Plan
+
+      ### Overview
+      [Brief summary of approach]
+
+      ### Tasks (in order)
+      1. [ ] Task 1 - description
+         - Files: list
+         - Complexity: low/medium/high
+      2. [ ] Task 2 - description
+         ...
+
+      ### Risks & Mitigations
+      - Risk: ...
+        Mitigation: ...
+
+      ### Definition of Done
+      - [ ] Criteria 1
+      - [ ] Criteria 2
+
+      Write to: ${OUTPUT}
+
+  # Stage 3: Refine the plan
+  - name: refine-plan
+    description: Iteratively improve the plan
+    runs: 5
+    completion: plateau
+    prompt: |
+      Review and improve this implementation plan:
+      ${INPUTS.plan}
+
+      Previous refinements:
+      ${PROGRESS}
+
+      Look for:
+      - Missing steps or dependencies
+      - Unclear task descriptions
+      - Incorrect ordering
+      - Missing edge cases
+      - Overly complex approaches (simplify!)
+
+      Make improvements directly to the plan.
+      Update ${PROGRESS} with what you changed.
+
+      PLATEAU: true (if plan is solid and actionable)
+      PLATEAU: false (if significant gaps remain)
+      REASONING: [why]
+
+  # Stage 4: Implement
+  - name: implement
+    description: Execute the plan task by task
+    runs: 20
+    completion: beads-empty
+    prompt: |
+      Implementation plan:
+      ${INPUTS.plan}
+
+      Your progress so far:
+      ${PROGRESS}
+
+      Pick the next uncompleted task from the plan and implement it:
+      1. Read relevant code
+      2. Make the changes
+      3. Test your changes
+      4. Commit with descriptive message
+
+      Update ${PROGRESS}:
+      - Mark the task complete
+      - Note any deviations from plan
+      - Record any learnings
+
+      Write to: ${OUTPUT}

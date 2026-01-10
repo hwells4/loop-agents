@@ -5,6 +5,14 @@ description: Create new loop agent types for the loop-engine. Scaffolds loop.yam
 
 <essential_principles>
 
+## CRITICAL: CLARIFY BEFORE BUILDING
+
+**If you don't fully understand what the user wants, ask questions until you do.**
+
+Don't assume. Don't guess. Don't start building until you're confident you understand the goal, the structure, and what success looks like.
+
+---
+
 **Loop types need two files:**
 1. `loop.yaml` - Configuration (completion strategy, parsing, delays)
 2. `prompt.md` - Instructions for the agent each iteration

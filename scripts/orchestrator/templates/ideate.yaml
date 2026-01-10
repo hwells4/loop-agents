@@ -1,0 +1,93 @@
+# Ideation Pipeline
+# Generate ideas from multiple perspectives, then synthesize
+
+name: ideate
+description: Generate and synthesize ideas from multiple angles
+version: 1
+
+defaults:
+  provider: claude-code
+  model: sonnet
+
+stages:
+  # Stage 1: Understand the problem/opportunity
+  - name: understand
+    description: Deeply understand the context and constraints
+    runs: 1
+    prompt: |
+      Ideation session: ${SESSION}
+
+      First, understand the problem space:
+      - What are we trying to improve or create?
+      - What constraints exist?
+      - Who are the users/stakeholders?
+      - What does success look like?
+
+      Explore the codebase if relevant to understand current state.
+
+      Write your understanding to: ${OUTPUT}
+
+  # Stage 2: Generate ideas from multiple perspectives
+  - name: brainstorm
+    description: Generate ideas from different angles
+    runs: 5
+    parallel: true
+    perspectives:
+      - user experience and delight
+      - technical elegance and simplicity
+      - performance and scalability
+      - maintainability and extensibility
+      - novel/unconventional approaches
+    prompt: |
+      Ideation perspective: ${PERSPECTIVE}
+
+      Context:
+      ${INPUTS.understand}
+
+      Generate 3-5 ideas from the lens of: ${PERSPECTIVE}
+
+      For each idea:
+      - Name: catchy title
+      - Description: 2-3 sentences
+      - Pros: benefits
+      - Cons: drawbacks or challenges
+      - Effort: low/medium/high
+
+      Be creative! Don't self-censor.
+
+      Write to: ${OUTPUT}
+
+  # Stage 3: Synthesize and rank
+  - name: synthesize
+    description: Combine, dedupe, and rank all ideas
+    runs: 1
+    model: opus
+    prompt: |
+      You have ideas from 5 different perspectives:
+      ${INPUTS.brainstorm}
+
+      Synthesize these into a ranked list:
+
+      1. Combine similar ideas
+      2. Identify the most promising ones
+      3. Consider feasibility vs impact
+      4. Note any novel combinations
+
+      Format:
+      ## Top Ideas (Recommended)
+      1. **Idea Name** - why it's great
+         - Effort: ...
+         - Impact: ...
+
+      2. ...
+
+      ## Worth Considering
+      - Idea: reason
+
+      ## Parking Lot (future consideration)
+      - Idea: why not now
+
+      ## Interesting Combinations
+      - Combining X + Y could...
+
+      Write to: ${OUTPUT}
