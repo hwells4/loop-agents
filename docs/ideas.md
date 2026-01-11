@@ -150,3 +150,85 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 **Why now:** As the loop library grows, we want users to create custom loops. Scaffolding reduces friction and ensures consistency.
 
 ---
+
+## Ideas from ideate-20260110 - Iteration 3
+
+### 1. Iteration Timeout
+**Problem:** A single Claude iteration can hang indefinitely—network stall, infinite thinking loop, or API issue. There's no way to bound iteration time, so a stuck iteration blocks the entire session until manual intervention.
+
+**Solution:** Add timeout configuration at multiple levels:
+- `timeout: 300` in loop.yaml (default 5 minutes)
+- `--timeout 600` CLI override for specific runs
+- Wrap Claude execution with `timeout` command
+- On timeout: log to state, retry once with same prompt, then skip iteration
+- Special handling: save partial output if available before killing
+
+**Why now:** This is a 15-line addition with huge reliability impact. As loops scale to 50+ iterations, timeout is essential. No downsides, only upside.
+
+---
+
+### 2. Loop Linter/Validator
+**Problem:** Invalid loop configurations (missing required fields, bad completion strategy names, undefined template variables) only fail at runtime—often deep into a long session. Users waste Claude credits discovering typos.
+
+**Solution:** Add `./scripts/run.sh lint` command:
+- Validates all loops in `scripts/loops/`
+- Checks required fields: name, description, completion
+- Validates completion strategy exists in `lib/completions/`
+- Scans prompt.md for undefined template variables
+- Validates pipeline stage references
+- Add pre-commit hook option
+- Exit with error code for CI integration
+
+**Why now:** The loop library is growing. Early validation prevents frustrating runtime failures and makes the system more approachable for new contributors.
+
+---
+
+### 3. Session Lifecycle Hooks
+**Problem:** Users can't customize behavior at key session moments. Want to send a Slack message on completion? Run cleanup on failure? Back up progress file between iterations? Currently requires forking the engine.
+
+**Solution:** Add hook points in engine.sh:
+- `on_session_start` - Before first iteration
+- `on_iteration_start` - Before each Claude call
+- `on_iteration_complete` - After each successful iteration
+- `on_session_complete` - When loop finishes (success or max reached)
+- `on_error` - When iteration fails
+Hooks defined in loop.yaml or `~/.config/loop-agents/hooks.sh`:
+```yaml
+hooks:
+  on_session_complete: "./scripts/notify-slack.sh ${SESSION}"
+```
+
+**Why now:** This is the standard extensibility pattern. Rather than adding every possible feature, let users compose their own behaviors. Unlocks integrations without bloating core.
+
+---
+
+### 4. Webhook Notifications
+**Problem:** Long-running loops (30+ iterations) take hours. Users have to manually check tmux or poll state files to know when they're done. No integration with team communication tools.
+
+**Solution:** Add webhook support via lifecycle hooks (see idea #3):
+- Built-in templates for Slack, Discord, Microsoft Teams
+- `./scripts/run.sh notify setup slack` to configure webhook URL
+- Sends: session name, completion status, iteration count, duration, cost (if tracked)
+- Optional: send on each iteration for verbose monitoring
+- Store webhook URLs in `~/.config/loop-agents/webhooks.yaml`
+
+**Why now:** Remote/async work is standard. Developers run loops and context-switch. Push notifications close the feedback loop without polling.
+
+---
+
+### 5. Test Harness for Loops
+**Problem:** How do you test a new loop without burning Claude credits? How do you verify a completion strategy works correctly? Currently there's no way to develop loops with fast feedback.
+
+**Solution:** Add test mode with mocked Claude responses:
+- `./scripts/run.sh test loop work` runs with mock responses
+- Define fixtures in `scripts/loops/{name}/fixtures/`:
+  - `iteration-1.txt` - mock Claude response for iteration 1
+  - `iteration-2.txt` - etc.
+- Falls back to generic "PLATEAU: false" if no fixture
+- Records actual prompts sent (for assertion/review)
+- Tests complete in seconds, not minutes
+- Add `--record` flag to capture real responses as fixtures
+
+**Why now:** This unlocks TDD for loop development. Right now creating a new loop is trial-and-error with real Claude calls. Test harness makes iteration 10x faster and catches regressions.
+
+---
