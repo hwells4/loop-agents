@@ -1,6 +1,6 @@
 # Workflow: Cleanup Sessions
 
-Find and handle stale, orphaned, or completed sessions.
+Find and handle stale, orphaned, or completed sessions and lock files.
 
 ## Step 1: Gather Session Data
 
@@ -14,6 +14,9 @@ if [ -f .claude/loop-sessions.json ]; then
 else
   STATE='{"sessions":{}}'
 fi
+
+# Get all lock files
+LOCK_FILES=$(ls .claude/locks/*.lock 2>/dev/null || echo "")
 ```
 
 ## Step 2: Identify Orphaned Sessions
@@ -66,6 +69,23 @@ echo "$STATE" | jq -r '
 done
 ```
 
+## Step 4b: Identify Stale Locks
+
+Lock files where the PID is no longer running:
+
+```bash
+for lock_file in .claude/locks/*.lock; do
+  [ -f "$lock_file" ] || continue
+  pid=$(jq -r '.pid // empty' "$lock_file" 2>/dev/null)
+  session=$(jq -r '.session // empty' "$lock_file" 2>/dev/null)
+  started=$(jq -r '.started_at // empty' "$lock_file" 2>/dev/null)
+
+  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    echo "STALE_LOCK: $session (PID $pid, started $started)"
+  fi
+done
+```
+
 ## Step 5: Present Findings
 
 Show what was found:
@@ -82,6 +102,9 @@ Stale Sessions (running > 2 hours):
 
 Zombie Entries (in state file, not running):
 {list zombies or "None found"}
+
+Stale Locks (lock file exists, PID dead):
+{list stale locks or "None found"}
 ```
 
 ## Step 6: Handle Orphans
@@ -193,6 +216,39 @@ Or offer to remove them entirely:
 }
 ```
 
+## Step 8b: Handle Stale Locks
+
+If stale locks found:
+
+```json
+{
+  "questions": [{
+    "question": "Found {N} stale lock files (PIDs no longer running). What should we do?",
+    "header": "Stale Locks",
+    "options": [
+      {"label": "Remove all stale locks", "description": "Delete lock files for dead processes"},
+      {"label": "Review each", "description": "Decide per lock file"},
+      {"label": "Leave them", "description": "Don't touch lock files"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**Remove all stale locks:**
+```bash
+for lock_file in .claude/locks/*.lock; do
+  [ -f "$lock_file" ] || continue
+  pid=$(jq -r '.pid // empty' "$lock_file" 2>/dev/null)
+  session=$(jq -r '.session // empty' "$lock_file" 2>/dev/null)
+
+  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    echo "Removing stale lock: $session (PID $pid)"
+    rm -f "$lock_file"
+  fi
+done
+```
+
 ## Step 9: Prune Old Entries
 
 Optionally clean up old completed/killed entries:
@@ -236,10 +292,12 @@ Actions taken:
 - Killed {X} orphaned sessions
 - Killed {Y} stale sessions
 - Updated {Z} zombie entries
+- Removed {L} stale locks
 - Pruned {W} old entries
 
 Current state:
 - Running sessions: {count}
+- Active locks: {count}
 - State file entries: {count}
 
 Run '/loop-agents:sessions → List' to see current status.
@@ -250,5 +308,7 @@ Run '/loop-agents:sessions → List' to see current status.
 - [ ] Orphans identified and handled
 - [ ] Stale sessions identified and handled
 - [ ] Zombie entries cleaned up
+- [ ] Stale locks cleaned up
 - [ ] State file is consistent with tmux reality
+- [ ] Lock files are consistent with running processes
 - [ ] User informed of all actions taken

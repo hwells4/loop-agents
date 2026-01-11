@@ -15,6 +15,7 @@ scripts/
 │   ├── resolve.sh
 │   ├── parse.sh
 │   ├── notify.sh
+│   ├── lock.sh            # Session locking
 │   └── completions/       # Stopping conditions
 ├── loops/                 # Loop definitions
 │   ├── work/
@@ -41,8 +42,52 @@ scripts/
 # Run a pipeline
 ./scripts/run.sh pipeline full-refine.yaml my-session
 
+# Force start (override existing lock)
+./scripts/run.sh loop work auth 25 --force
+
 # List available
 ./scripts/run.sh
+```
+
+## Session Locking
+
+Sessions are protected by lock files to prevent duplicate concurrent sessions with the same name. Lock files are stored in `.claude/locks/` and contain:
+
+```json
+{"session": "auth", "pid": 12345, "started_at": "2025-01-10T10:00:00Z"}
+```
+
+**Automatic behavior:**
+- Lock acquired when a loop/pipeline starts
+- Lock released when it completes (success or failure)
+- Stale locks (dead PIDs) are cleaned up automatically on startup
+
+**Manual lock management:**
+```bash
+# List active locks
+ls .claude/locks/
+
+# View lock details
+cat .claude/locks/auth.lock | jq
+
+# Clear a stale lock (if process is dead)
+rm .claude/locks/auth.lock
+```
+
+**Force flag:**
+Use `--force` to override an existing lock. This is useful when:
+- A previous run crashed and left a stale lock
+- You want to replace a running session
+
+```bash
+./scripts/run.sh loop work auth 25 --force
+```
+
+**Error messages:**
+When a lock conflict occurs, you'll see:
+```
+Error: Session 'auth' is already running (PID 12345)
+  Use --force to override
 ```
 
 ## Creating a Loop

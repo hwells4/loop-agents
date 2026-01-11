@@ -100,6 +100,9 @@ ls scripts/pipelines/*.yaml
 # Start a loop
 tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX"
 
+# Start a loop with force (override existing lock)
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX --force"
+
 # Start a pipeline
 tmux new-session -d -s pipeline-NAME -c "$(pwd)" "./scripts/run.sh pipeline FILE.yaml NAME"
 
@@ -121,6 +124,13 @@ cat .claude/loop-state-NAME.json | jq '.status'
 
 # Check pipeline state
 cat .claude/pipeline-runs/NAME/state.json | jq '.status'
+
+# Check session locks
+ls .claude/locks/
+cat .claude/locks/NAME.lock | jq
+
+# Clear stale lock
+rm .claude/locks/NAME.lock
 ```
 
 ## Reference Index

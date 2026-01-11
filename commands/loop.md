@@ -154,6 +154,8 @@ tmux kill-session -t loop-{NAME}
 
 Confirm first: "This will stop the loop. Any bead in progress may be incomplete."
 
+Note: The session lock is automatically released when the loop process ends.
+
 ---
 
 ## Building Pipelines
@@ -207,3 +209,27 @@ tmux new-session -d -s "loop-api" ...
 | Check running loops | `/loop status` |
 | Watch a loop | `/loop attach NAME` |
 | Stop a loop | `/loop kill NAME` |
+
+---
+
+## Session Locks
+
+Sessions are protected by lock files to prevent running duplicate sessions with the same name.
+
+**If you see "Session is already running":**
+```bash
+# Check if the session is actually running
+tmux has-session -t loop-{NAME} && echo "running" || echo "not in tmux"
+
+# View lock details
+cat .claude/locks/{NAME}.lock | jq
+
+# Check if the lock's PID is alive
+ps -p $(jq -r .pid .claude/locks/{NAME}.lock)
+
+# Force start (override existing lock)
+./scripts/run.sh loop work {NAME} 25 --force
+
+# Or clear a stale lock manually
+rm .claude/locks/{NAME}.lock
+```

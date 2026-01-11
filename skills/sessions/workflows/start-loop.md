@@ -89,16 +89,21 @@ The tmux session will be `loop-{session-name}`.
 
 ## Step 5: Check for Conflicts
 
+Check both tmux sessions AND lock files:
+
 ```bash
-# Check if session already exists
-tmux has-session -t loop-{session-name} 2>/dev/null && echo "EXISTS" || echo "AVAILABLE"
+# Check if tmux session already exists
+tmux has-session -t loop-{session-name} 2>/dev/null && echo "TMUX_EXISTS" || echo "NO_TMUX"
+
+# Check if lock file exists
+test -f .claude/locks/{session-name}.lock && echo "LOCKED" || echo "NO_LOCK"
 ```
 
-If EXISTS, use AskUserQuestion:
+**If TMUX_EXISTS**, use AskUserQuestion:
 ```json
 {
   "questions": [{
-    "question": "A session named 'loop-{session-name}' already exists. What should we do?",
+    "question": "A session named 'loop-{session-name}' already exists in tmux. What should we do?",
     "header": "Conflict",
     "options": [
       {"label": "Attach to existing", "description": "Connect to the running session"},
@@ -108,6 +113,32 @@ If EXISTS, use AskUserQuestion:
     "multiSelect": false
   }]
 }
+```
+
+**If LOCKED but NO_TMUX** (stale lock), show lock details:
+```bash
+cat .claude/locks/{session-name}.lock | jq
+```
+
+Then ask:
+```json
+{
+  "questions": [{
+    "question": "Found stale lock for '{session-name}' (PID not running). What should we do?",
+    "header": "Stale Lock",
+    "options": [
+      {"label": "Clear lock and start", "description": "Remove stale lock, start fresh"},
+      {"label": "Force start", "description": "Use --force flag to override"},
+      {"label": "Choose different name", "description": "I'll pick another name"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+If they choose "Clear lock and start":
+```bash
+rm .claude/locks/{session-name}.lock
 ```
 
 ## Step 6: Validate Prerequisites

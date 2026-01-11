@@ -196,3 +196,18 @@ cat .claude/loop-progress/progress-{session}.txt
 **Too many iterations?** Agent may be overcounting.
 - Default formula is generous
 - Reduce iterations for well-defined beads
+
+**Session already running?** Lock prevents duplicate sessions.
+```bash
+# Check if actually running
+tmux has-session -t loop-{NAME} && echo "running" || echo "stale lock"
+
+# View lock details (who holds it, when started)
+cat .claude/locks/{NAME}.lock | jq
+
+# Force start (override lock)
+./scripts/run.sh loop work {NAME} 25 --force
+
+# Or clear stale lock manually
+rm .claude/locks/{NAME}.lock
+```

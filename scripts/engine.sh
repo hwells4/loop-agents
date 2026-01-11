@@ -38,6 +38,7 @@ source "$LIB_DIR/progress.sh"
 source "$LIB_DIR/resolve.sh"
 source "$LIB_DIR/parse.sh"
 source "$LIB_DIR/notify.sh"
+source "$LIB_DIR/lock.sh"
 
 # Export for hooks
 export CLAUDE_LOOP_AGENT=1
@@ -407,26 +408,67 @@ run_pipeline() {
 # Main
 #-------------------------------------------------------------------------------
 
+# Parse --force flag from remaining args
+FORCE_FLAG=""
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE_FLAG="--force" ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+set -- "${ARGS[@]}"
+
+# Cleanup stale locks on startup
+cleanup_stale_locks
+
 case "$MODE" in
   loop)
-    LOOP_TYPE=${1:?"Usage: engine.sh stage <stage_type> [session] [max_iterations]"}
+    LOOP_TYPE=${1:?"Usage: engine.sh loop <stage_type> [session] [max_iterations] [--force]"}
     SESSION=${2:-"$LOOP_TYPE"}
     MAX_ITERATIONS=${3:-25}
+
+    # Acquire lock before starting
+    if ! acquire_lock "$SESSION" "$FORCE_FLAG"; then
+      exit 1
+    fi
+
+    # Ensure lock is released on exit (success, error, or signal)
+    trap 'release_lock "$SESSION"' EXIT
+
     run_stage "$LOOP_TYPE" "$SESSION" "$MAX_ITERATIONS"
     ;;
 
   pipeline)
-    PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session]"}
+    PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force]"}
     SESSION=$2
+
+    # For pipelines, derive session name if not provided
+    if [ -z "$SESSION" ]; then
+      pipeline_json=$(yaml_to_json "$PIPELINE_FILE" 2>/dev/null || echo "{}")
+      SESSION=$(json_get "$pipeline_json" ".name" "pipeline")-$(date +%Y%m%d-%H%M%S)
+    fi
+
+    # Acquire lock before starting
+    if ! acquire_lock "$SESSION" "$FORCE_FLAG"; then
+      exit 1
+    fi
+
+    # Ensure lock is released on exit (success, error, or signal)
+    trap 'release_lock "$SESSION"' EXIT
+
     run_pipeline "$PIPELINE_FILE" "$SESSION"
     ;;
 
   *)
-    echo "Usage: engine.sh <loop|pipeline> <type_or_file> [session] [max_iterations]"
+    echo "Usage: engine.sh <loop|pipeline> <type_or_file> [session] [max_iterations] [--force]"
     echo ""
     echo "Modes:"
     echo "  loop <type> [session] [max]  - Run a loop"
     echo "  pipeline <file> [session]     - Run a multi-stage pipeline"
+    echo ""
+    echo "Options:"
+    echo "  --force    Override existing session lock"
     echo ""
     echo "Available loops:"
     ls "$LOOPS_DIR" 2>/dev/null | while read d; do

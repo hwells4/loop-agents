@@ -271,6 +271,8 @@ awk '/^---$/{found=1; next} found' .claude/loop-progress/progress-myfeature.txt
 ├── loop-progress/
 │   └── progress-{session}.txt      # Accumulated context per session
 ├── loop-completions.json           # Log of all completions (optional)
+├── locks/                          # Session lock files
+│   └── {session}.lock              # Per-session lock (prevents duplicates)
 └── pipeline-runs/
     └── {session}/
         ├── state.json              # Pipeline progress
@@ -278,6 +280,67 @@ awk '/^---$/{found=1; next} found' .claude/loop-progress/progress-myfeature.txt
         └── stage-{N}-{name}/
             ├── progress.md         # Stage-specific progress
             └── output.md           # Stage output
+```
+
+---
+
+## Lock Files
+
+**Location:** `.claude/locks/{session}.lock`
+
+**Purpose:** Prevent concurrent sessions with the same name. Automatically created when a loop/pipeline starts, released when it ends.
+
+### Schema
+
+```json
+{
+  "session": "auth",
+  "pid": 12345,
+  "started_at": "2025-01-10T10:00:00Z"
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session` | string | Session name |
+| `pid` | number | Process ID holding the lock |
+| `started_at` | ISO8601 | When the lock was acquired |
+
+### Operations
+
+**Check if locked:**
+```bash
+test -f .claude/locks/myfeature.lock && echo "locked" || echo "available"
+```
+
+**View lock details:**
+```bash
+cat .claude/locks/myfeature.lock | jq
+```
+
+**Check if PID is still alive:**
+```bash
+pid=$(jq -r .pid .claude/locks/myfeature.lock)
+kill -0 "$pid" 2>/dev/null && echo "alive" || echo "dead (stale lock)"
+```
+
+**Clear a stale lock:**
+```bash
+rm .claude/locks/myfeature.lock
+```
+
+**Find all stale locks:**
+```bash
+for lock_file in .claude/locks/*.lock; do
+  [ -f "$lock_file" ] || continue
+  pid=$(jq -r '.pid // empty' "$lock_file" 2>/dev/null)
+  session=$(jq -r '.session // empty' "$lock_file" 2>/dev/null)
+  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    echo "Stale: $session (PID $pid)"
+  fi
+done
 ```
 
 ---
