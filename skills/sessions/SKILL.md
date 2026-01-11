@@ -1,13 +1,21 @@
 ---
 name: sessions
-description: Run and manage autonomous loop agents and pipelines in tmux sessions. Start loops, start pipelines, monitor output, attach/detach, list running sessions, kill sessions, and clean up stale work. Use when running autonomous tasks in the background.
+description: Run and manage autonomous loop agents and pipelines in tmux sessions. Start sessions, monitor output, attach/detach, list running sessions, kill sessions, and clean up stale work. Use when running autonomous tasks in the background.
 ---
+
+## CRITICAL: Everything Is A Pipeline
+
+A "loop" is a **single-stage pipeline**. The unified engine treats them identically.
+
+- **Single-stage session** = what we call a "loop" (e.g., `work`, `improve-plan`)
+- **Multi-stage session** = what we call a "pipeline" (e.g., `full-refine.yaml`)
+
+All sessions run in `.claude/pipeline-runs/{session}/` with the same state tracking.
 
 ## What This Skill Does
 
-Runs autonomous loop agents and multi-stage pipelines in tmux background sessions. You can:
-- Start any loop type (work, improve-plan, refine-beads, idea-wizard, custom)
-- Start pipelines (multi-stage workflows that chain loops together)
+Runs autonomous sessions in tmux background. You can:
+- Start any session (single-stage loops OR multi-stage pipelines)
 - Monitor running sessions without attaching
 - Attach to watch live, detach to continue in background
 - List all running sessions with status
@@ -48,8 +56,7 @@ Use the AskUserQuestion tool:
     "question": "What would you like to do?",
     "header": "Action",
     "options": [
-      {"label": "Start Loop", "description": "Run a loop agent in tmux background"},
-      {"label": "Start Pipeline", "description": "Run a multi-stage pipeline in tmux"},
+      {"label": "Start Session", "description": "Run a loop or pipeline in tmux background"},
       {"label": "Monitor", "description": "Peek at output from a running session"},
       {"label": "Attach", "description": "Connect to watch a session live"},
       {"label": "List", "description": "Show all running sessions"},
@@ -67,8 +74,7 @@ Use the AskUserQuestion tool:
 
 | Response | Workflow |
 |----------|----------|
-| "Start Loop" | `workflows/start-loop.md` |
-| "Start Pipeline" | `workflows/start-pipeline.md` |
+| "Start Session" | `workflows/start.md` |
 | "Monitor" | `workflows/monitor.md` |
 | "Attach" | `workflows/attach.md` |
 | "List" | `workflows/list.md` |
@@ -80,27 +86,27 @@ Use the AskUserQuestion tool:
 ## Quick Reference
 
 ```bash
-# Discover available loops
+# Discover available stages (single-stage options)
 ls scripts/loops/
 
-# Discover available pipelines
+# Discover available pipelines (multi-stage options)
 ls scripts/pipelines/*.yaml
 
-# Start a loop (multiple equivalent syntaxes)
+# Start a single-stage session (all equivalent)
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh TYPE NAME MAX"
 tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX"
-tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh TYPE NAME MAX"  # shortcut
+
+# Start a multi-stage session
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh pipeline FILE.yaml NAME"
 
 # Start with force (override existing lock)
-tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX --force"
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh TYPE NAME MAX --force"
 
 # Resume a crashed session
-tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX --resume"
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh TYPE NAME MAX --resume"
 
-# Check session status (quick way)
+# Check session status
 ./scripts/run.sh status NAME
-
-# Start a pipeline
-tmux new-session -d -s pipeline-NAME -c "$(pwd)" "./scripts/run.sh pipeline FILE.yaml NAME"
 
 # Peek at output (safe, doesn't attach)
 tmux capture-pane -t SESSION_NAME -p | tail -50
@@ -137,8 +143,7 @@ rm .claude/locks/NAME.lock
 
 | Workflow | Purpose |
 |----------|---------|
-| start-loop.md | Start any loop type in tmux |
-| start-pipeline.md | Start a pipeline in tmux |
+| start.md | Start any session (single-stage or multi-stage) in tmux |
 | monitor.md | Safely peek at output |
 | attach.md | Connect to watch live |
 | list.md | Show all running sessions |

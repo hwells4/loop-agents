@@ -3,12 +3,20 @@ name: pipeline-builder
 description: Create and configure loop agents and pipelines. Use when user wants to build a new loop type, create a multi-stage pipeline, or customize autonomous agent workflows.
 ---
 
+## CRITICAL: Everything Is A Pipeline
+
+A "loop" is a **single-stage pipeline**. The unified engine treats them identically.
+
+When you "create a loop", you're creating a **stage definition** in `scripts/loops/{name}/` that runs as a single-stage pipeline. When you "create a pipeline", you're creating a **multi-stage config** in `scripts/pipelines/{name}.yaml` that chains stages together.
+
+All sessions run in `.claude/pipeline-runs/{session}/` with unified state tracking.
+
 ## What This Skill Does
 
-Helps you create custom loop agents and pipelines for the loop-agents system. You can:
-- Create new loop types with custom prompts and completion strategies
-- Chain loops into multi-stage pipelines
-- Edit existing loops and pipelines
+Helps you create custom stages and pipelines for the loop-agents system. You can:
+- Create new stage types with custom prompts and completion strategies
+- Chain stages into multi-stage pipelines
+- Edit existing stages and pipelines
 - Validate configurations before running
 
 ## Opinionated Defaults

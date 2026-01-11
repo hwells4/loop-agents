@@ -1,6 +1,8 @@
-# Workflow: Create Loop
+# Workflow: Create Stage (Single-Stage Pipeline)
 
-Create a new loop agent with custom prompt and completion strategy.
+Create a new stage definition with custom prompt and completion strategy.
+
+> **Note:** A "loop" is a single-stage pipeline. You're creating a stage definition in `scripts/loops/{name}/` that the unified engine runs as a single-stage pipeline.
 
 ## Prerequisites
 
@@ -242,20 +244,29 @@ Wait for validation report. If issues found, fix them.
 ## Step 7: Confirm to User
 
 ```
-Loop created: scripts/loops/{name}/
+Stage created: scripts/loops/{name}/
 - loop.yaml: {completion strategy} completion
 - prompt.md: Agent instructions
 
-To run:
-./scripts/run.sh loop {name} {session-name} {max-iterations}
+To run this stage, use the sessions skill:
+  /loop-agents:sessions → Start Session → Single-stage
+
+Or run directly in tmux:
+  tmux new-session -d -s "loop-{session}" -c "$(pwd)" \
+    "./scripts/run.sh {name} {session} {max-iterations}"
 
 Example:
-./scripts/run.sh loop {name} my-session 25
+  tmux new-session -d -s "loop-my-session" -c "$(pwd)" \
+    "./scripts/run.sh {name} my-session 25"
 
-Session files created at:
-  .claude/pipeline-runs/{session-name}/
+Session files will be created at:
+  .claude/pipeline-runs/{session}/
   ├── state.json              # Iteration tracking + crash recovery
   └── progress-{session}.md   # Accumulated context
+
+IMPORTANT: Always run in tmux for background execution. Running directly
+in your terminal will block until completion and won't persist if you
+disconnect.
 ```
 
 ## Success Criteria
