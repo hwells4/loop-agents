@@ -87,6 +87,33 @@ The tmux session will be `loop-{session-name}`.
 - refine-beads: 5-10 (plateau typically hit around 3-5)
 - idea-wizard: 3-5 (fixed-n, specify exactly what you want)
 
+## Step 4b: Check for Crashed Sessions
+
+Check if a previous session crashed and can be resumed:
+
+```bash
+./scripts/run.sh status {session-name}
+```
+
+If output shows "CRASHED" or "failed", ask:
+
+```json
+{
+  "questions": [{
+    "question": "Found a crashed session '{session-name}'. What should we do?",
+    "header": "Crashed Session",
+    "options": [
+      {"label": "Resume", "description": "Continue from last completed iteration (--resume)"},
+      {"label": "Start fresh", "description": "Clear state and start from iteration 1 (--force)"},
+      {"label": "Choose different name", "description": "I'll pick another name"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+If "Resume", add `--resume` flag to the start command in Step 7.
+
 ## Step 5: Check for Conflicts
 
 Check both tmux sessions AND lock files:
@@ -180,37 +207,19 @@ If FAILED, try to capture any error:
 tmux capture-pane -t loop-{session-name} -p 2>/dev/null || echo "Session failed to start"
 ```
 
-## Step 9: Update State File
+## Step 9: Verify Engine State
 
-Read existing state, add new session:
+The engine automatically creates state files. Verify they exist:
 
 ```bash
-# Ensure directory exists
-mkdir -p .claude
+# Check state file was created
+test -f .claude/pipeline-runs/{session-name}/state.json && echo "OK" || echo "MISSING"
 
-# Read existing or create new
-if [ -f .claude/loop-sessions.json ]; then
-  EXISTING=$(cat .claude/loop-sessions.json)
-else
-  EXISTING='{"sessions":{}}'
-fi
-
-# Add new session using jq
-echo "$EXISTING" | jq --arg name "loop-{session-name}" \
-  --arg type "loop" \
-  --arg loop_type "{loop-type}" \
-  --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --arg path "$PROJECT_PATH" \
-  --argjson max {max-iterations} \
-  '.sessions[$name] = {
-    "type": $type,
-    "loop_type": $loop_type,
-    "started_at": $started,
-    "project_path": $path,
-    "max_iterations": $max,
-    "status": "running"
-  }' > .claude/loop-sessions.json
+# Quick status check
+./scripts/run.sh status {session-name}
 ```
+
+No manual state file updates needed - the engine handles everything.
 
 ## Step 10: Show Success Message
 

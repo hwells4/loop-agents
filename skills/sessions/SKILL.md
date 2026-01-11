@@ -16,29 +16,18 @@ Runs autonomous loop agents and multi-stage pipelines in tmux background session
 
 ## Session Lifecycle
 
-Every tmux session you start MUST be tracked. When you start a session, update the state file. When it completes or you kill it, clean up.
+Every session runs in an isolated directory with its own state. The engine automatically tracks everything.
 
-**State File:** `.claude/loop-sessions.json`
-```json
-{
-  "sessions": {
-    "loop-auth": {
-      "type": "loop",
-      "loop_type": "work",
-      "started_at": "2025-01-10T10:00:00Z",
-      "project_path": "/path/to/project",
-      "max_iterations": 50,
-      "status": "running"
-    },
-    "pipeline-refine": {
-      "type": "pipeline",
-      "pipeline_file": "full-refine.yaml",
-      "started_at": "2025-01-10T11:00:00Z",
-      "project_path": "/path/to/project",
-      "status": "running"
-    }
-  }
-}
+**Run Directory:** `.claude/pipeline-runs/{session}/`
+
+Each session gets:
+- `state.json` - Iteration tracking, crash recovery info
+- `progress-{session}.md` - Accumulated context for fresh agents
+- Lock file at `.claude/locks/{session}.lock`
+
+**Check session status:**
+```bash
+./scripts/run.sh status {session-name}
 ```
 
 **Naming Conventions:**
@@ -97,11 +86,18 @@ ls scripts/loops/
 # Discover available pipelines
 ls scripts/pipelines/*.yaml
 
-# Start a loop
+# Start a loop (multiple equivalent syntaxes)
 tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX"
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh TYPE NAME MAX"  # shortcut
 
-# Start a loop with force (override existing lock)
+# Start with force (override existing lock)
 tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX --force"
+
+# Resume a crashed session
+tmux new-session -d -s loop-NAME -c "$(pwd)" "./scripts/run.sh loop TYPE NAME MAX --resume"
+
+# Check session status (quick way)
+./scripts/run.sh status NAME
 
 # Start a pipeline
 tmux new-session -d -s pipeline-NAME -c "$(pwd)" "./scripts/run.sh pipeline FILE.yaml NAME"

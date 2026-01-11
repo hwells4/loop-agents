@@ -2,101 +2,6 @@
 
 Complete reference for state file schemas and operations.
 
-## Session Tracking State
-
-**Location:** `.claude/loop-sessions.json`
-
-**Purpose:** Track all sessions started by Claude across conversations.
-
-### Schema
-
-```json
-{
-  "sessions": {
-    "loop-feature-name": {
-      "type": "loop",
-      "loop_type": "work",
-      "started_at": "2025-01-10T10:00:00Z",
-      "project_path": "/path/to/project",
-      "max_iterations": 50,
-      "status": "running",
-      "killed_at": null,
-      "completed_at": null,
-      "note": null
-    },
-    "pipeline-refine": {
-      "type": "pipeline",
-      "pipeline_file": "full-refine.yaml",
-      "started_at": "2025-01-10T11:00:00Z",
-      "project_path": "/path/to/project",
-      "status": "running"
-    }
-  }
-}
-```
-
-### Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | string | `"loop"` or `"pipeline"` |
-| `loop_type` | string | For loops: `work`, `improve-plan`, etc. |
-| `pipeline_file` | string | For pipelines: filename like `full-refine.yaml` |
-| `started_at` | ISO8601 | When session was started |
-| `project_path` | string | Absolute path to project |
-| `max_iterations` | number | For loops: maximum iterations allowed |
-| `status` | string | `running`, `completed`, `killed`, `unknown_termination` |
-| `killed_at` | ISO8601 | When manually killed (if applicable) |
-| `completed_at` | ISO8601 | When finished naturally (if applicable) |
-| `note` | string | Optional note (e.g., "recovered from orphan") |
-
-### Operations
-
-**Read current state:**
-```bash
-cat .claude/loop-sessions.json | jq '.'
-```
-
-**Add a new session:**
-```bash
-jq --arg name "loop-myfeature" \
-   --arg type "loop" \
-   --arg loop_type "work" \
-   --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-   --arg path "$(pwd)" \
-   --argjson max 50 \
-   '.sessions[$name] = {
-     type: $type,
-     loop_type: $loop_type,
-     started_at: $started,
-     project_path: $path,
-     max_iterations: $max,
-     status: "running"
-   }' .claude/loop-sessions.json > tmp && mv tmp .claude/loop-sessions.json
-```
-
-**Update status:**
-```bash
-jq --arg name "loop-myfeature" \
-   --arg status "killed" \
-   --arg killed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-   '.sessions[$name].status = $status |
-    .sessions[$name].killed_at = $killed' \
-   .claude/loop-sessions.json > tmp && mv tmp .claude/loop-sessions.json
-```
-
-**List running sessions:**
-```bash
-jq -r '.sessions | to_entries[] | select(.value.status == "running") | .key' .claude/loop-sessions.json
-```
-
-**Remove a session entry:**
-```bash
-jq --arg name "loop-myfeature" 'del(.sessions[$name])' .claude/loop-sessions.json > tmp && mv tmp .claude/loop-sessions.json
-```
-
----
-
 ## Session State Files (Unified)
 
 **Location:** `.claude/pipeline-runs/{session}/state.json`
@@ -275,7 +180,6 @@ All sessions (loops AND pipelines) now use the unified `pipeline-runs/` director
 
 ```
 .claude/
-├── loop-sessions.json              # Session tracking (all sessions)
 ├── locks/                          # Session lock files
 │   └── {session}.lock              # Per-session lock with heartbeat
 └── pipeline-runs/                  # ALL sessions go here now
@@ -357,33 +261,23 @@ done
 
 ## Cleanup Operations
 
-**Remove completed entries older than 7 days:**
+**Remove old session directories:**
 ```bash
-CUTOFF=$(date -v-7d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -d "7 days ago" +%Y-%m-%dT%H:%M:%SZ)
+# Find sessions older than 7 days
+find .claude/pipeline-runs -maxdepth 1 -type d -mtime +7
 
-jq --arg cutoff "$CUTOFF" '
-  .sessions |= with_entries(
-    select(
-      .value.status == "running" or
-      (.value.completed_at // .value.killed_at // .value.started_at) > $cutoff
-    )
-  )
-' .claude/loop-sessions.json > tmp && mv tmp .claude/loop-sessions.json
+# Remove specific session
+rm -rf .claude/pipeline-runs/{session-name}
 ```
 
-**Remove all killed/completed entries:**
+**Find orphaned locks (PID not running):**
 ```bash
-jq '.sessions |= with_entries(select(.value.status == "running"))' \
-  .claude/loop-sessions.json > tmp && mv tmp .claude/loop-sessions.json
-```
-
-**Find orphaned state files (no matching session):**
-```bash
-for dir in .claude/pipeline-runs/*/; do
-  [ -d "$dir" ] || continue
-  session=$(basename "$dir")
-  if ! jq -e ".sessions[\"loop-$session\"] // .sessions[\"pipeline-$session\"]" .claude/loop-sessions.json >/dev/null 2>&1; then
-    echo "Orphaned: $dir"
+for lock_file in .claude/locks/*.lock; do
+  [ -f "$lock_file" ] || continue
+  pid=$(jq -r '.pid // empty' "$lock_file" 2>/dev/null)
+  session=$(jq -r '.session // empty' "$lock_file" 2>/dev/null)
+  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    echo "Stale: $session (PID $pid)"
   fi
 done
 ```
