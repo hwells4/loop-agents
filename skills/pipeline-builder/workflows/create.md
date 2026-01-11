@@ -1,358 +1,229 @@
 # Workflow: Create Pipeline
 
-Create a pipeline with one or more stages.
+Create a pipeline based on what the user wants to accomplish.
 
-> **Everything is a pipeline.** Single-stage pipelines run a stage directly. Multi-stage pipelines chain stages together via a YAML config.
+> **Be an agent, not a wizard.** Infer what's needed, propose a plan, execute end-to-end, validate, confirm.
 
-## Prerequisites
+## Philosophy
 
-Read these first:
-- `references/completion-strategies.md` - When to use each strategy
-- `references/loop-config.md` - Stage configuration options
-- `references/template-variables.md` - Available variables
-- `references/pipeline-config.md` - Multi-stage pipeline structure
+**Don't interrogate the user.** They said what they want. Your job is to:
+1. Understand the goal
+2. Decide how many stages and what completion strategy
+3. Propose your plan in one clear message
+4. Get confirmation (or adjustments)
+5. Create everything
+6. Validate with linter
+7. Show where everything lives and how to run it
 
-## Step 1: Understand the Goal
+## Step 1: Analyze the Request
 
-**Use your judgment.** Based on what the user described, determine:
+Read what the user wants and determine:
 
-1. **What problem does this solve?** (implementation, refinement, analysis, etc.)
-2. **How many stages?** (most are single-stage)
-3. **What completion strategy?**
+| Question | How to Decide |
+|----------|---------------|
+| **Completion strategy** | Implementation/tasks → `beads-empty`. Refinement/review → `plateau`. Exploration/brainstorm → `fixed-n` |
+| **Number of stages** | Most things are single-stage. Multi-stage only if there are distinct phases (e.g., plan then implement, analyze then synthesize) |
+| **Use existing stages?** | Check `ls scripts/loops/` - reuse if it fits |
+| **Output location** | Must go somewhere tracked (not just progress file). Determine based on purpose |
 
-| Goal | Stages | Strategy |
-|------|--------|----------|
-| Implement tasks/beads | 1 | `beads-empty` |
-| Refine a document | 1 | `plateau` |
-| Generate ideas | 1 | `fixed-n` |
-| Refine plan then beads | 2 | `plateau` → `plateau` |
-| Review from multiple angles | 2+ | custom |
+## Step 2: Propose the Plan
 
-**If unclear, ask:**
+Present your decision in ONE message. Be specific:
+
+```
+Based on what you described, here's my plan:
+
+**Pipeline: {name}**
+- Stages: {N}
+- Completion: {strategy} ({why})
+
+**Stage 1: {name}**
+- Purpose: {what it does each iteration}
+- Stops when: {completion condition}
+- Output: {where results go - must be a tracked file/directory}
+
+[If multi-stage]
+**Stage 2: {name}**
+- Purpose: {what it does}
+- Input: Results from Stage 1
+- Output: {where results go}
+
+Ready to create this? (Confirm / Adjust)
+```
+
+**Key points:**
+- State WHERE outputs will be written (not just "progress file")
+- If outputs go to gitignored locations only, that's wrong - add a tracked output location
+- Be concrete about what each iteration does
+
+## Step 3: Get Confirmation
+
+Use AskUserQuestion only ONCE for confirmation:
+
 ```json
 {
   "questions": [{
-    "question": "What should this pipeline accomplish?",
-    "header": "Goal",
+    "question": "Ready to create this pipeline?",
+    "header": "Confirm",
     "options": [
-      {"label": "Implement tasks", "description": "Work through beads until done"},
-      {"label": "Refine/improve", "description": "Iterate until quality plateaus"},
-      {"label": "Explore/brainstorm", "description": "Generate ideas for N iterations"},
-      {"label": "Multi-stage workflow", "description": "Chain multiple stages together"}
+      {"label": "Create it", "description": "Proceed with the plan above"},
+      {"label": "Adjust", "description": "I want to change something"}
     ],
     "multiSelect": false
   }]
 }
 ```
 
-## Step 2: Determine Stage Count
+If they choose "Adjust", ask what they want to change, update the plan, confirm again.
 
-```json
-{
-  "questions": [{
-    "question": "How many stages does this pipeline need?",
-    "header": "Stages",
-    "options": [
-      {"label": "Single-stage", "description": "One stage that iterates until completion (most common)"},
-      {"label": "Multi-stage", "description": "Chain stages together (e.g., plan → implement → verify)"}
-    ],
-    "multiSelect": false
-  }]
-}
-```
+## Step 4: Create Everything
 
-**Single-stage:** Creates a stage definition in `scripts/loops/{name}/`, runs directly.
+Execute the full creation without stopping for questions.
 
-**Multi-stage:** Creates stage definitions as needed, plus a pipeline YAML in `scripts/pipelines/{name}.yaml`.
+### 4a. Create Stage Directories
 
-## Step 3: Check Existing Stages
-
-List what's already available:
-
-```bash
-ls scripts/loops/
-```
-
-Common stages:
-- `work` - Implement beads (beads-empty)
-- `improve-plan` - Refine a plan (plateau)
-- `refine-beads` - Improve beads (plateau)
-- `idea-wizard` - Generate ideas (fixed-n)
-
-For each stage in the pipeline, determine:
-- **Use existing?** → Reference by name
-- **Create new?** → Define it in Step 4
-
-## Step 4: Define Stages
-
-For each stage that needs to be created:
-
-### 4a. Get Stage Name
-
-Short, lowercase, hyphenated. Examples: `code-review`, `doc-audit`, `test-generator`
-
-### 4b. Determine Configuration
-
-| Goal | completion | min_iterations | output_parse |
-|------|------------|----------------|--------------|
-| Task-driven | `beads-empty` | - | - |
-| Quality refinement | `plateau` | `2` | `plateau:PLATEAU reasoning:REASONING` |
-| Fixed exploration | `fixed-n` | - | - |
-
-**Always use:**
-- `model: opus` (unless user requests otherwise)
-- `delay: 3` (prevents rate limiting)
-
-### 4c. Create Stage Directory
-
+For each new stage:
 ```bash
 mkdir -p scripts/loops/{stage-name}
 ```
 
-### 4d. Write loop.yaml
+### 4b. Write Stage Configs
 
-**For beads-empty:**
+**loop.yaml for beads-empty:**
 ```yaml
 name: {stage-name}
-description: {One sentence description}
+description: {One sentence}
 completion: beads-empty
 check_before: true
 delay: 3
 ```
 
-**For plateau:**
+**loop.yaml for plateau:**
 ```yaml
 name: {stage-name}
-description: {One sentence description}
+description: {One sentence}
 completion: plateau
 min_iterations: 2
 delay: 3
 output_parse: "plateau:PLATEAU reasoning:REASONING"
 ```
 
-**For fixed-n:**
+**loop.yaml for fixed-n:**
 ```yaml
 name: {stage-name}
-description: {One sentence description}
+description: {One sentence}
 completion: fixed-n
 delay: 3
 ```
 
-### 4e. Write prompt.md
+### 4c. Write Stage Prompts
 
-Keep prompts focused. One clear task per iteration. See existing prompts in `scripts/loops/*/prompt.md` for examples.
+Keep prompts **focused**. One task per iteration. Study existing prompts in `scripts/loops/*/prompt.md` for length and style.
 
-**Template for beads-empty:**
+**Critical: Define where outputs go.** Every prompt must specify:
+- Progress file: `.claude/pipeline-runs/{session}/progress-{session}.md` (for iteration context)
+- **Primary output:** A tracked location like `docs/`, `reports/`, or the files being modified
+
+Example output section in prompt:
 ```markdown
-# {Stage Name}
-
-Session: ${SESSION_NAME}
-Progress: ${PROGRESS_FILE}
-
-## Context
-
-Read progress file for accumulated learnings:
-\`\`\`bash
-cat ${PROGRESS_FILE}
-\`\`\`
-
-## Available Work
-
-\`\`\`bash
-bd ready --label=loop/${SESSION_NAME}
-\`\`\`
-
-## Workflow
-
-1. Choose next task
-2. Claim it: `bd update <id> --status=in_progress`
-3. Implement
-4. Verify
-5. Close: `bd close <id>`
-6. Update progress file
-```
-
-**Template for plateau:**
-```markdown
-# {Stage Name}
-
-Session: ${SESSION_NAME}
-Iteration: ${ITERATION}
-Progress: ${PROGRESS_FILE}
-
-## Context
-
-\`\`\`bash
-cat ${PROGRESS_FILE}
-\`\`\`
-
-## Your Task
-
-{What to review/improve this iteration}
-
-## Plateau Decision
-
-At the END of your response:
-
-\`\`\`
-PLATEAU: true/false
-REASONING: [Your explanation]
-\`\`\`
-
-Say true if: remaining issues are cosmetic, finding same issues repeatedly
-Say false if: found significant gaps, made substantial changes
-```
-
-**Template for fixed-n:**
-```markdown
-# {Stage Name}
-
-Session: ${SESSION_NAME}
-Iteration: ${ITERATION}
-
-## Context
-
-\`\`\`bash
-cat ${PROGRESS_FILE}
-\`\`\`
-
-## Your Task
-
-{What to generate/explore this iteration}
-
 ## Output
 
-Append findings to progress file.
+Update the target files directly. After making changes:
+
+1. Commit your changes with a descriptive message
+2. Append a summary to the progress file:
+   ```
+   ## Iteration ${ITERATION}
+   - Changed: [files]
+   - Reason: [why]
+   ```
 ```
 
-**Repeat Step 4 for each new stage needed.**
-
-## Step 5: Create Pipeline Config (Multi-Stage Only)
-
-If single-stage, skip to Step 6.
-
-For multi-stage, create the pipeline YAML:
+### 4d. Write Pipeline Config (Multi-Stage Only)
 
 ```bash
-cat > scripts/pipelines/{pipeline-name}.yaml << 'EOF'
-name: {pipeline-name}
-description: {What this pipeline accomplishes}
+cat > scripts/pipelines/{name}.yaml << 'EOF'
+name: {name}
+description: {What this accomplishes}
 
 stages:
-  - name: {stage-1-name}
+  - name: {stage-1}
     loop: {stage-type}
-    runs: {max-iterations}
+    runs: {max}
 
-  - name: {stage-2-name}
+  - name: {stage-2}
     loop: {stage-type}
-    runs: {max-iterations}
+    runs: {max}
 EOF
 ```
 
-### Multi-Stage Patterns
+## Step 5: Validate
 
-**Two-stage refinement:**
-```yaml
-name: full-refine
-description: Refine plan then beads
-
-stages:
-  - name: plan
-    loop: improve-plan
-    runs: 5
-
-  - name: beads
-    loop: refine-beads
-    runs: 5
-```
-
-**Sequential with synthesis:**
-```yaml
-name: analyze-and-report
-description: Analyze then synthesize findings
-
-stages:
-  - name: analysis
-    loop: code-audit
-    runs: 10
-
-  - name: report
-    runs: 1
-    prompt: |
-      Analysis from previous stage:
-      ${INPUTS}
-
-      Synthesize into actionable report.
-      Write to: ${OUTPUT}
-    completion: fixed-n
-```
-
-## Step 6: Validate
+**Always run the linter.** Don't skip this.
 
 ```bash
-# Validate stage(s)
+# Validate each new stage
 ./scripts/run.sh lint loop {stage-name}
 
 # Validate pipeline (multi-stage only)
 ./scripts/run.sh lint pipeline {pipeline-name}
+```
 
-# Preview execution
+**If lint fails:** Fix the errors immediately. Don't tell the user "it's ready" until lint passes.
+
+**After lint passes:** Run dry-run to verify resolution:
+```bash
 ./scripts/run.sh dry-run loop {stage-name} test-session
 ```
 
-Fix any reported errors before proceeding.
+## Step 6: Confirm Completion
 
-## Step 7: Confirm to User
-
-### For Single-Stage:
+Show the user exactly what was created and how to use it:
 
 ```
-Pipeline created: scripts/loops/{stage-name}/
-- loop.yaml: {completion} strategy
-- prompt.md: Agent instructions
+Pipeline created and validated.
 
-To run, use the sessions skill:
-  /loop-agents:sessions → Start Session → Single-stage
+**Files created:**
+- scripts/loops/{stage-name}/loop.yaml
+- scripts/loops/{stage-name}/prompt.md
+[- scripts/pipelines/{name}.yaml (multi-stage only)]
 
-Or directly in tmux:
-  tmux new-session -d -s "loop-{session}" -c "$(pwd)" \
-    "./scripts/run.sh {stage-name} {session} {max-iterations}"
+**Outputs will be written to:**
+- {Primary output location - tracked in git}
+- .claude/pipeline-runs/{session}/progress-{session}.md (iteration context)
 
-Session files created at:
-  .claude/pipeline-runs/{session}/
-  ├── state.json
-  └── progress-{session}.md
+**To run:**
+Use `/loop-agents:sessions` → Start Session
+
+Or directly:
+```bash
+tmux new-session -d -s "loop-{session}" -c "$(pwd)" \
+  "./scripts/run.sh {stage-name} {session} {max}"
 ```
 
-### For Multi-Stage:
-
+**To monitor:**
+```bash
+tmux attach -t loop-{session}
 ```
-Pipeline created: scripts/pipelines/{pipeline-name}.yaml
-
-Stages:
-1. {stage-1}: {loop} x{runs}
-2. {stage-2}: {loop} x{runs}
-
-To run, use the sessions skill:
-  /loop-agents:sessions → Start Session → Multi-stage
-
-Or directly in tmux:
-  tmux new-session -d -s "loop-{session}" -c "$(pwd)" \
-    "./scripts/run.sh pipeline {pipeline-name}.yaml {session}"
-
-Session files created at:
-  .claude/pipeline-runs/{session}/
-  ├── state.json
-  └── stage-{N}-{name}/
 ```
+
+## Common Mistakes to Avoid
+
+1. **Output only to progress file** - Progress file is for iteration context, not primary output. Always define a tracked output location.
+
+2. **Bloated prompts** - If your prompt is 150+ lines with multiple sub-agent spawns, it's too complex. One clear task per iteration.
+
+3. **Too many questions** - Don't ask the user about completion strategy, stage count, etc. Decide based on what they want.
+
+4. **Skipping validation** - Always run lint. Always.
+
+5. **Not showing output location** - User must know where to find results.
 
 ## Success Criteria
 
-- [ ] Goal and completion strategy determined
-- [ ] Stage count decided (single or multi)
-- [ ] All stages exist (created or pre-existing)
-- [ ] Stage configs have required fields
-- [ ] Prompts are focused (not bloated)
-- [ ] Pipeline YAML created (multi-stage only)
-- [ ] Validation passed
-- [ ] User shown how to run via sessions skill
+- [ ] Analyzed request and made decisions (didn't just ask user)
+- [ ] Proposed plan with specific output locations
+- [ ] Got single confirmation before creating
+- [ ] Created all files end-to-end
+- [ ] Ran linter and it passed
+- [ ] Showed user exactly where files are and how to run

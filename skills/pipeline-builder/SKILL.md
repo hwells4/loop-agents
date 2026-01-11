@@ -35,48 +35,37 @@ Apply these defaults based on what the user is trying to accomplish. Only deviat
 
 **Min iterations for plateau:** `2` (need at least 2 agents to compare)
 
-## Adaptive Requirements Gathering
+## Be an Agent, Not a Wizard
 
-**Do not follow a rigid question script.** Instead:
+**Don't interrogate the user.** They said what they want. Your job is to:
 
-1. Look at what the user has already told you
-2. Determine what information is missing
-3. Use your judgment to decide if you need clarification or can proceed with sensible defaults
+1. **Infer** - Decide completion strategy, stage count, output locations based on what they described
+2. **Propose** - Present your plan in one clear message with specifics
+3. **Confirm** - Single yes/no confirmation, not a questionnaire
+4. **Execute** - Create everything end-to-end without stopping
+5. **Validate** - Run linter, fix any errors
+6. **Report** - Show exactly where files are and how to run
 
-**To create a pipeline, you need to know:**
-- What's the goal? (determines completion strategy)
-- How many stages? (single or multi)
-- For each stage: existing or new?
-- If new: what should each iteration do?
+**Bad:** "What completion strategy do you want? How many stages? What should each stage do?"
 
-If the user's description is clear enough, proceed. If not, ask focused questions using `AskUserQuestion`.
+**Good:** "You want to audit the codebase. I'll create a single-stage pipeline with plateau completion that writes findings to `docs/audit-findings.md`. Each iteration reviews a different aspect until two agents agree quality plateaued. Sound good?"
 
 ## Process
 
-### 1. Understand Intent
+### 1. Route to Workflow
 
-When invoked, determine what the user wants:
-- **Create pipeline** → `workflows/create.md` (handles both single and multi-stage)
-- **Edit existing** → `workflows/edit.md`
+- **Create something new** → `workflows/create.md`
+- **Edit existing config** → `workflows/edit.md`
 
-If unclear, ask:
-```json
-{
-  "questions": [{
-    "question": "What would you like to do?",
-    "header": "Action",
-    "options": [
-      {"label": "Create Pipeline", "description": "Create a new pipeline (single or multi-stage)"},
-      {"label": "Edit Existing", "description": "Modify an existing stage or pipeline configuration"}
-    ],
-    "multiSelect": false
-  }]
-}
-```
+Most invocations are "create". Only route to "edit" if explicitly modifying existing.
 
 ### 2. Execute Workflow
 
-Read and follow the appropriate workflow file exactly.
+Read and follow the workflow. Key points:
+- Make decisions, don't ask questions
+- Propose your plan, get one confirmation
+- Create everything, validate with linter
+- Show where outputs go
 
 ### 3. Verify Configuration
 
