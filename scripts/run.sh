@@ -95,13 +95,11 @@ case "$1" in
     if [ -f "$lock_file" ]; then
       pid=$(jq -r '.pid' "$lock_file" 2>/dev/null)
       started=$(jq -r '.started_at' "$lock_file" 2>/dev/null)
-      heartbeat=$(jq -r '.heartbeat' "$lock_file" 2>/dev/null)
 
       if kill -0 "$pid" 2>/dev/null; then
         echo "Session '$session' is RUNNING"
         echo "  PID: $pid"
         echo "  Started: $started"
-        echo "  Last heartbeat: $heartbeat"
       else
         echo "Session '$session' has CRASHED (stale lock)"
         echo "  PID: $pid (dead)"

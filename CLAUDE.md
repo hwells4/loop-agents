@@ -21,6 +21,12 @@ Loop Agents is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for Clau
 # Force start (override existing session lock)
 ./scripts/run.sh loop work auth 25 --force
 
+# Resume a crashed/failed session
+./scripts/run.sh loop work auth 25 --resume
+
+# Check session status
+./scripts/run.sh status auth
+
 # List available loops/pipelines
 ./scripts/run.sh
 ```
@@ -65,12 +71,13 @@ scripts/
 ├── run.sh                    # Entry point wrapper
 ├── lib/                      # Shared utilities
 │   ├── yaml.sh               # YAML→JSON conversion
-│   ├── state.sh              # JSON iteration history
+│   ├── state.sh              # JSON iteration history + crash recovery
 │   ├── progress.sh           # Accumulated context files
 │   ├── resolve.sh            # Template variable resolution
 │   ├── parse.sh              # Claude output parsing
 │   ├── notify.sh             # Desktop notifications + logging
 │   ├── lock.sh               # Session locking (prevents duplicates)
+│   ├── heartbeat.sh          # Crash detection via periodic heartbeats
 │   └── completions/          # Stopping strategies
 │       ├── beads-empty.sh    # Stop when no beads remain
 │       ├── plateau.sh        # Stop when 2 agents agree
@@ -101,14 +108,30 @@ A loop = prompt template + completion strategy. Each iteration:
 
 ### State vs Progress Files
 
-**State file** (`.claude/loop-state-{session}.json`): JSON tracking iteration history for completion checks
+**State file** (`.claude/state.json`): JSON tracking iteration history for completion checks and crash recovery
 ```json
-{"session": "auth", "iteration": 5, "history": [{"plateau": false}, {"plateau": true}]}
+{
+  "session": "auth",
+  "iteration": 5,
+  "iteration_completed": 4,
+  "iteration_started": "2025-01-10T10:05:00Z",
+  "status": "running",
+  "history": [{"plateau": false}, {"plateau": true}]
+}
 ```
 
 **Progress file** (`.claude/loop-progress/progress-{session}.txt`): Markdown with accumulated learnings. Fresh Claude reads this each iteration to maintain context.
 
-**Lock file** (`.claude/locks/{session}.lock`): JSON preventing concurrent sessions with the same name. Contains PID, session name, and start time. Automatically cleaned up when process exits or dies.
+**Lock file** (`.claude/locks/{session}.lock`): JSON preventing concurrent sessions with the same name. Contains PID, session name, start time, and heartbeat timestamp for crash detection.
+```json
+{
+  "session": "auth",
+  "pid": 12345,
+  "started_at": "2025-01-10T10:00:00Z",
+  "heartbeat": "2025-01-10T10:05:30Z",
+  "heartbeat_epoch": 1736503530
+}
+```
 
 ### Completion Strategies
 
@@ -186,7 +209,7 @@ output_parse: plateau:PLATEAU reasoning:REASONING  # extract from output
 tmux attach -t loop-{session}
 
 # Check loop state
-cat .claude/loop-state-{session}.json | jq
+cat .claude/state.json | jq
 
 # View progress file
 cat .claude/loop-progress/progress-{session}.txt
@@ -196,7 +219,32 @@ bd ready --label=loop/{session}
 
 # Kill a stuck loop
 tmux kill-session -t loop-{session}
+
+# Check session status (active, failed, completed)
+./scripts/run.sh status {session}
 ```
+
+### Crash Recovery
+
+Sessions automatically detect and recover from crashes (API timeouts, network issues, SIGKILL).
+
+**When a session crashes**, you'll see:
+```
+Session 'auth' failed at iteration 5/25
+Last successful iteration: 4
+Error: Claude process terminated unexpectedly
+Run with --resume to continue from iteration 5
+```
+
+**To resume:**
+```bash
+./scripts/run.sh loop work auth 25 --resume
+```
+
+**How crash detection works:**
+1. Heartbeat updates every 30s during iteration execution
+2. On startup, engine checks: lock exists + PID dead + stale heartbeat = crashed
+3. State file tracks `iteration_started` and `iteration_completed` for precise resume
 
 ### Session Locks
 
@@ -206,7 +254,7 @@ Locks prevent running duplicate sessions with the same name. They are automatica
 # List active locks
 ls .claude/locks/
 
-# View lock details (PID, start time)
+# View lock details (PID, start time, heartbeat)
 cat .claude/locks/{session}.lock | jq
 
 # Check if a session is locked
@@ -219,15 +267,10 @@ rm .claude/locks/{session}.lock
 ./scripts/run.sh loop work my-session 10 --force
 ```
 
-**Lock file format:**
-```json
-{"session": "auth", "pid": 12345, "started_at": "2025-01-10T10:00:00Z"}
-```
-
 **When you see "Session is already running":**
 1. Check if the PID in the lock file is still alive: `ps -p <pid>`
 2. If alive, the session is running - attach or kill it first
-3. If dead, the lock is stale - remove it manually or use `--force`
+3. If dead, the lock is stale - use `--resume` to continue or `--force` to restart
 
 ## Environment Variables
 

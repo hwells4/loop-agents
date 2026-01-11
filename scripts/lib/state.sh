@@ -25,6 +25,8 @@ init_state() {
         status: "running",
         current_stage: 0,
         iteration: 0,
+        iteration_completed: 0,
+        iteration_started: null,
         stages: [],
         history: []
       }' > "$state_file"
@@ -87,6 +89,98 @@ get_history() {
   jq -c '.history' "$state_file" 2>/dev/null || echo "[]"
 }
 
+# Mark iteration started
+# Usage: mark_iteration_started "$state_file" "$iteration"
+mark_iteration_started() {
+  local state_file=$1
+  local iteration=$2
+
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  jq --argjson iter "$iteration" \
+     --arg ts "$timestamp" \
+     '.iteration = $iter | .iteration_started = $ts | .status = "running"' \
+     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+}
+
+# Mark iteration completed
+# Usage: mark_iteration_completed "$state_file" "$iteration"
+mark_iteration_completed() {
+  local state_file=$1
+  local iteration=$2
+
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  jq --argjson iter "$iteration" \
+     --arg ts "$timestamp" \
+     '.iteration_completed = $iter | .iteration_started = null' \
+     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+}
+
+# Mark session as failed
+# Usage: mark_failed "$state_file" "$error"
+mark_failed() {
+  local state_file=$1
+  local error=$2
+
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  jq --arg status "failed" \
+     --arg error "$error" \
+     --arg ts "$timestamp" \
+     '.status = $status | .failed_at = $ts | .error = $error' \
+     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+}
+
+# Get the iteration to resume from
+# Usage: get_resume_iteration "$state_file"
+# Returns: iteration number to resume from (last_completed + 1)
+get_resume_iteration() {
+  local state_file=$1
+
+  if [ ! -f "$state_file" ]; then
+    echo "1"
+    return 0
+  fi
+
+  local completed=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
+  echo "$((completed + 1))"
+}
+
+# Check if session can be resumed
+# Usage: can_resume "$state_file"
+# Returns: 0 if can resume, 1 if not
+can_resume() {
+  local state_file=$1
+
+  if [ ! -f "$state_file" ]; then
+    return 1
+  fi
+
+  local status=$(jq -r '.status // "unknown"' "$state_file" 2>/dev/null)
+
+  case "$status" in
+    complete)
+      return 1  # Already complete, nothing to resume
+      ;;
+    running|failed)
+      return 0  # Can resume
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Reset state for resume (clears failure status, keeps history)
+# Usage: reset_for_resume "$state_file"
+reset_for_resume() {
+  local state_file=$1
+
+  jq '.status = "running" | del(.failed_at) | del(.error)' \
+    "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+}
+
 # Mark complete
 # Usage: mark_complete "$state_file" "$reason"
 mark_complete() {
@@ -98,6 +192,6 @@ mark_complete() {
   jq --arg status "complete" \
      --arg reason "$reason" \
      --arg ts "$timestamp" \
-     '.status = $status | .completed_at = $ts | .completion_reason = $reason' \
+     '.status = $status | .completed_at = $ts | .completion_reason = $reason | .iteration_started = null' \
      "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
 }

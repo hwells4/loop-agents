@@ -212,7 +212,7 @@ tmux new-session -d -s "loop-api" ...
 
 ---
 
-## Session Locks
+## Session Locks and Crash Recovery
 
 Sessions are protected by lock files to prevent running duplicate sessions with the same name.
 
@@ -221,7 +221,7 @@ Sessions are protected by lock files to prevent running duplicate sessions with 
 # Check if the session is actually running
 tmux has-session -t loop-{NAME} && echo "running" || echo "not in tmux"
 
-# View lock details
+# View lock details (includes heartbeat timestamp)
 cat .claude/locks/{NAME}.lock | jq
 
 # Check if the lock's PID is alive
@@ -233,3 +233,25 @@ ps -p $(jq -r .pid .claude/locks/{NAME}.lock)
 # Or clear a stale lock manually
 rm .claude/locks/{NAME}.lock
 ```
+
+**If a session crashed:**
+```bash
+# Check session status
+./scripts/run.sh status {NAME}
+
+# Resume from last successful iteration
+./scripts/run.sh loop work {NAME} 25 --resume
+```
+
+When a crash is detected, you'll see:
+```
+Session 'auth' failed at iteration 5/25
+Last successful iteration: 4
+Error: Claude process terminated unexpectedly
+Run with --resume to continue from iteration 5
+```
+
+The engine automatically detects crashes using:
+- Heartbeat timestamps (updated every 30s during execution)
+- PID liveness checks
+- Iteration start/complete tracking in state file

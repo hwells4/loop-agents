@@ -127,13 +127,14 @@ execute_claude() {
 }
 
 # Run a single stage for N iterations
-# Usage: run_stage "$stage_type" "$session" "$max_iterations" "$run_dir" "$stage_idx"
+# Usage: run_stage "$stage_type" "$session" "$max_iterations" "$run_dir" "$stage_idx" "$start_iteration"
 run_stage() {
   local stage_type=$1
   local session=$2
   local max_iterations=${3:-25}
   local run_dir=${4:-"$PROJECT_ROOT/.claude"}
   local stage_idx=${5:-0}
+  local start_iteration=${6:-1}
 
   load_stage "$stage_type" || return 1
 
@@ -153,20 +154,26 @@ run_stage() {
   export CLAUDE_LOOP_TYPE="$stage_type"
   export MAX_ITERATIONS="$max_iterations"
 
-  echo "═══════════════════════════════════════"
-  echo "  Loop: $LOOP_NAME"
-  echo "  Session: $session"
-  echo "  Max iterations: $max_iterations"
-  echo "  Model: $LOOP_MODEL"
-  echo "  Completion: $LOOP_COMPLETION"
-  echo "═══════════════════════════════════════"
-  echo ""
-
-  for i in $(seq 1 $max_iterations); do
-    echo "═══════════════════════════════════════"
-    echo "  Iteration $i of $max_iterations"
-    echo "═══════════════════════════════════════"
+  # Display header
+  if [ "$start_iteration" -eq 1 ]; then
     echo ""
+    echo "  Loop: $LOOP_NAME"
+    echo "  Session: $session"
+    echo "  Max iterations: $max_iterations"
+    echo "  Model: $LOOP_MODEL"
+    echo "  Completion: $LOOP_COMPLETION"
+    echo ""
+  else
+    show_resume_info "$session" "$start_iteration" "$max_iterations"
+  fi
+
+  for i in $(seq $start_iteration $max_iterations); do
+    echo ""
+    echo "  Iteration $i of $max_iterations"
+    echo ""
+
+    # Mark iteration started (for crash recovery)
+    mark_iteration_started "$state_file" "$i"
 
     # Pre-iteration completion check
     if [ "$LOOP_CHECK_BEFORE" = "true" ]; then
@@ -200,7 +207,7 @@ run_stage() {
 
     if [ $exit_code -ne 0 ]; then
       echo ""
-      echo "⚠️  Claude exited with code $exit_code"
+      echo "Warning: Claude exited with code $exit_code"
       echo "   Continuing to next iteration..."
       echo ""
     fi
@@ -211,8 +218,9 @@ run_stage() {
       output_json=$(parse_outputs_to_json "$output" $LOOP_OUTPUT_PARSE)
     fi
 
-    # Update state
+    # Update state - mark iteration completed
     update_iteration "$state_file" "$i" "$output_json"
+    mark_iteration_completed "$state_file" "$i"
 
     # Post-iteration completion check
     if check_completion "$session" "$state_file" "$output"; then
@@ -408,12 +416,14 @@ run_pipeline() {
 # Main
 #-------------------------------------------------------------------------------
 
-# Parse --force flag from remaining args
+# Parse flags from remaining args
 FORCE_FLAG=""
+RESUME_FLAG=""
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE_FLAG="--force" ;;
+    --resume) RESUME_FLAG="--resume" ;;
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -422,31 +432,115 @@ set -- "${ARGS[@]}"
 # Cleanup stale locks on startup
 cleanup_stale_locks
 
+# Helper function to get state file path for a session
+get_state_file_path() {
+  local session=$1
+  local run_dir="${PROJECT_ROOT}/.claude"
+  echo "$run_dir/state.json"
+}
+
+# Helper function to check for failed session and handle resume
+check_failed_session() {
+  local session=$1
+  local state_file=$2
+  local max_iterations=$3
+
+  # Get session status
+  local status=$(get_session_status "$session" "$state_file")
+
+  case "$status" in
+    completed)
+      echo "Session '$session' is already complete."
+      echo "$SESSION_STATUS_DETAILS"
+      exit 0
+      ;;
+    active)
+      echo "Error: Session '$session' is currently active."
+      echo "$SESSION_STATUS_DETAILS"
+      echo ""
+      echo "Use --force to override if you're sure it's not running."
+      exit 1
+      ;;
+    failed)
+      if [ "$RESUME_FLAG" = "--resume" ]; then
+        return 0  # Allow resume
+      else
+        show_crash_recovery_info "$session" "$state_file" "$max_iterations"
+        exit 1
+      fi
+      ;;
+    none)
+      if [ "$RESUME_FLAG" = "--resume" ]; then
+        echo "Error: Cannot resume - no previous session '$session' found."
+        exit 1
+      fi
+      return 0  # New session
+      ;;
+  esac
+}
+
 case "$MODE" in
   loop)
-    LOOP_TYPE=${1:?"Usage: engine.sh loop <stage_type> [session] [max_iterations] [--force]"}
+    LOOP_TYPE=${1:?"Usage: engine.sh loop <stage_type> [session] [max_iterations] [--force] [--resume]"}
     SESSION=${2:-"$LOOP_TYPE"}
     MAX_ITERATIONS=${3:-25}
+
+    # Determine run directory and state file
+    RUN_DIR="${PROJECT_ROOT}/.claude"
+    STATE_FILE="$RUN_DIR/state.json"
+
+    # Check for existing/failed session
+    check_failed_session "$SESSION" "$STATE_FILE" "$MAX_ITERATIONS"
+
+    # Determine start iteration
+    START_ITERATION=1
+    if [ "$RESUME_FLAG" = "--resume" ] && [ -f "$STATE_FILE" ]; then
+      START_ITERATION=$(get_resume_iteration "$STATE_FILE")
+      reset_for_resume "$STATE_FILE"
+      echo "Resuming session '$SESSION' from iteration $START_ITERATION"
+    fi
 
     # Acquire lock before starting
     if ! acquire_lock "$SESSION" "$FORCE_FLAG"; then
       exit 1
     fi
 
-    # Ensure lock is released on exit (success, error, or signal)
+    # Ensure lock is released on exit
     trap 'release_lock "$SESSION"' EXIT
 
-    run_stage "$LOOP_TYPE" "$SESSION" "$MAX_ITERATIONS"
+    run_stage "$LOOP_TYPE" "$SESSION" "$MAX_ITERATIONS" "$RUN_DIR" "0" "$START_ITERATION"
     ;;
 
   pipeline)
-    PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force]"}
+    PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force] [--resume]"}
     SESSION=$2
 
     # For pipelines, derive session name if not provided
     if [ -z "$SESSION" ]; then
       pipeline_json=$(yaml_to_json "$PIPELINE_FILE" 2>/dev/null || echo "{}")
       SESSION=$(json_get "$pipeline_json" ".name" "pipeline")-$(date +%Y%m%d-%H%M%S)
+    fi
+
+    # Determine run directory and state file for pipeline
+    RUN_DIR="$PROJECT_ROOT/.claude/pipeline-runs/$SESSION"
+    STATE_FILE="$RUN_DIR/state.json"
+
+    # Check for existing/failed session (only if state file exists)
+    if [ -f "$STATE_FILE" ]; then
+      check_failed_session "$SESSION" "$STATE_FILE" "?"
+    fi
+
+    # Resume for pipelines is more complex - show warning
+    if [ "$RESUME_FLAG" = "--resume" ]; then
+      if [ -f "$STATE_FILE" ]; then
+        echo "Warning: Pipeline resume support is limited."
+        echo "The pipeline will restart from the beginning."
+        echo "Previous state will be preserved in: $RUN_DIR"
+        echo ""
+      else
+        echo "Error: Cannot resume - no previous pipeline session '$SESSION' found."
+        exit 1
+      fi
     fi
 
     # Acquire lock before starting
@@ -460,15 +554,36 @@ case "$MODE" in
     run_pipeline "$PIPELINE_FILE" "$SESSION"
     ;;
 
+  status)
+    # Show status of a session
+    SESSION=${1:?"Usage: engine.sh status <session>"}
+    STATE_FILE=$(get_state_file_path "$SESSION")
+
+    status=$(get_session_status "$SESSION" "$STATE_FILE")
+    echo "Session: $SESSION"
+    echo "Status: $status"
+    echo "$SESSION_STATUS_DETAILS"
+
+    if [ "$status" = "failed" ]; then
+      get_crash_info "$SESSION" "$STATE_FILE"
+      echo ""
+      echo "Last iteration started: $CRASH_LAST_ITERATION"
+      echo "Last iteration completed: $CRASH_LAST_COMPLETED"
+      [ -n "$CRASH_ERROR" ] && echo "Error: $CRASH_ERROR"
+    fi
+    ;;
+
   *)
-    echo "Usage: engine.sh <loop|pipeline> <type_or_file> [session] [max_iterations] [--force]"
+    echo "Usage: engine.sh <loop|pipeline|status> <type_or_file> [session] [max_iterations] [--force] [--resume]"
     echo ""
     echo "Modes:"
     echo "  loop <type> [session] [max]  - Run a loop"
     echo "  pipeline <file> [session]     - Run a multi-stage pipeline"
+    echo "  status <session>              - Check session status"
     echo ""
     echo "Options:"
     echo "  --force    Override existing session lock"
+    echo "  --resume   Resume a failed/crashed session"
     echo ""
     echo "Available loops:"
     ls "$LOOPS_DIR" 2>/dev/null | while read d; do

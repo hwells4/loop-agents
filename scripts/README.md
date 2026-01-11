@@ -45,6 +45,12 @@ scripts/
 # Force start (override existing lock)
 ./scripts/run.sh loop work auth 25 --force
 
+# Resume a crashed/failed session
+./scripts/run.sh loop work auth 25 --resume
+
+# Check session status
+./scripts/run.sh status auth
+
 # List available
 ./scripts/run.sh
 ```
@@ -88,6 +94,84 @@ When a lock conflict occurs, you'll see:
 ```
 Error: Session 'auth' is already running (PID 12345)
   Use --force to override
+```
+
+## Crash Recovery
+
+Sessions automatically detect and recover from crashes (API timeouts, network issues, SIGKILL, etc).
+
+### How It Works
+
+1. **Lock Files**: Each session has a lock file with PID and start time
+2. **Iteration Tracking**: State file tracks `iteration_started` and `iteration_completed`
+3. **Failure Detection**: On startup, the engine checks:
+   - Lock file exists but PID is dead = crashed
+   - Lock file exists and PID is alive = active (don't interfere)
+   - State has incomplete iteration = can resume
+
+### When a Session Crashes
+
+If Claude crashes mid-iteration, you'll see on next attempt:
+```
+Session 'auth' failed at iteration 5/25
+Last successful iteration: 4
+Error: Claude process terminated unexpectedly
+Run with --resume to continue from iteration 5
+```
+
+### Resuming a Failed Session
+
+```bash
+# Resume from last successful iteration
+./scripts/run.sh loop work auth 25 --resume
+```
+
+Output:
+```
+Resuming session 'auth' from iteration 5
+Previous run: iterations 1-4 completed
+```
+
+### Checking Session Status
+
+```bash
+# Check status of any session
+./scripts/run.sh status auth
+```
+
+Output varies by status:
+- **Active**: `Session running (PID 12345)`
+- **Failed**: `Session crashed (PID 12345 dead, started 2025-01-10T10:00:00Z)`
+- **Completed**: `Session completed: all beads processed`
+
+### State File Format
+
+The state file (`.claude/state.json`) now includes:
+```json
+{
+  "session": "auth",
+  "status": "running",
+  "iteration": 5,
+  "iteration_started": "2025-01-10T10:05:00Z",
+  "iteration_completed": 4,
+  "history": [...]
+}
+```
+
+Fields:
+- `status`: "running", "failed", or "complete"
+- `iteration_started`: Timestamp when current iteration began (null if between iterations)
+- `iteration_completed`: Last successfully completed iteration number
+
+### Lock File Format
+
+Lock files (`.claude/locks/{session}.lock`):
+```json
+{
+  "session": "auth",
+  "pid": 12345,
+  "started_at": "2025-01-10T10:00:00Z"
+}
 ```
 
 ## Creating a Loop
