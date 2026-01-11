@@ -7,4 +7,4 @@ completion: plateau
 min_iterations: 2
 delay: 3
 output_parse: "plateau:PLATEAU reasoning:REASONING"
-prompt: bead-refiner
+prompt: prompts/bead-refiner.md

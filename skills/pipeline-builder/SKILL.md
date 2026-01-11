@@ -78,109 +78,32 @@ Read and follow the appropriate workflow file exactly.
 
 ### 3. Verify Configuration
 
-**Always run verification after creating or editing.** Spawn the verification subagent:
+**Always run verification after creating or editing.** Use the built-in validation commands:
 
-```
-Task tool with subagent_type: "Explore"
-Prompt: See <verification_protocol> below
-```
+```bash
+# Validate a loop
+./scripts/run.sh lint loop {name}
 
-## Verification Protocol
+# Validate a pipeline
+./scripts/run.sh lint pipeline {name}
 
-After creating or modifying any loop or pipeline, spawn a verification subagent with this prompt:
-
-<verification_protocol>
-
-You are validating a loop-agents configuration. Check everything thoroughly.
-
-**Target:** {path to created/modified files}
-
-## Validation Checklist
-
-### For Loops (scripts/loops/{name}/)
-
-1. **loop.yaml syntax**
-   ```bash
-   # Check YAML is valid
-   cat scripts/loops/{name}/loop.yaml | python3 -c "import sys,yaml; yaml.safe_load(sys.stdin)"
-   ```
-
-2. **Required fields present**
-   - `name` - must match directory name
-   - `completion` - must be one of: beads-empty, plateau, fixed-n
-   - `description` - should explain what loop does
-
-3. **Completion strategy configuration**
-   - If `plateau`: must have `output_parse` with `plateau:PLATEAU`
-   - If `plateau`: should have `min_iterations: 2` or higher
-   - If `beads-empty`: should have `check_before: true`
-
-4. **prompt.md exists and is valid**
-   ```bash
-   test -f scripts/loops/{name}/prompt.md && echo "Prompt exists" || echo "ERROR: Missing prompt.md"
-   ```
-
-5. **Template variables are correct**
-   - `${SESSION}` or `${SESSION_NAME}` - session identifier
-   - `${ITERATION}` - current iteration (1-based)
-   - `${PROGRESS_FILE}` or `${PROGRESS}` - path to progress file
-   - No undefined variables like `${UNDEFINED}`
-
-6. **Plateau loops have required output format**
-   - Prompt must instruct agent to output `PLATEAU: true/false`
-   - Prompt must instruct agent to output `REASONING: ...`
-
-### For Pipelines (scripts/pipelines/{name}.yaml)
-
-1. **YAML syntax**
-   ```bash
-   cat scripts/pipelines/{name}.yaml | python3 -c "import sys,yaml; yaml.safe_load(sys.stdin)"
-   ```
-
-2. **Required fields**
-   - `name` - pipeline identifier
-   - `stages` - array of stage definitions
-
-3. **Each stage has required fields**
-   - `name` - stage identifier
-   - `loop` OR inline `prompt` - what to run
-   - `runs` - number of iterations
-
-4. **Referenced loops exist**
-   ```bash
-   # For each stage with loop: X, verify:
-   test -d scripts/loops/X && echo "Loop X exists" || echo "ERROR: Loop X not found"
-   ```
-
-5. **Variable flow is correct**
-   - Later stages can use `${INPUTS}` to get previous stage output
-   - Named references `${INPUTS.stage-name}` must reference existing stage names
-
-## Report Format
-
-Output a validation report:
-
-```
-## Validation Report: {name}
-
-### Status: PASS / FAIL
-
-### Checks Performed
-- [ ] YAML syntax valid
-- [ ] Required fields present
-- [ ] Completion strategy properly configured
-- [ ] Template variables correct
-- [ ] Referenced loops exist (for pipelines)
-- [ ] Output parsing configured (for plateau loops)
-
-### Issues Found
-{List any problems, or "None"}
-
-### Recommendations
-{Suggestions for improvement, or "Configuration looks good"}
+# Preview what will happen (shows resolved prompt, files, completion strategy)
+./scripts/run.sh dry-run loop {name} test-session
+./scripts/run.sh dry-run pipeline {name} test-session
 ```
 
-</verification_protocol>
+**Validation checks:**
+- YAML syntax is valid
+- Required fields present (`name`, `completion` for loops; `name`, `stages` for pipelines)
+- Completion strategy file exists
+- Prompt file exists
+- Plateau loops have `output_parse` with `PLATEAU`
+- Referenced loops exist (for pipelines)
+- Template variables are from the known set
+
+**If lint fails:** Fix the reported errors before telling the user the configuration is ready.
+
+**If lint passes:** Run dry-run to show the user what will happen when they run it
 
 ## Quick Reference
 
@@ -190,8 +113,17 @@ Output a validation report:
 
 **Pipeline location:** `scripts/pipelines/{name}.yaml`
 
-**Run commands:**
+**Commands:**
 ```bash
+# Validate configurations
+./scripts/run.sh lint                        # All loops and pipelines
+./scripts/run.sh lint loop {name}            # Specific loop
+./scripts/run.sh lint pipeline {name}        # Specific pipeline
+
+# Preview execution (shows resolved prompt, files, strategy)
+./scripts/run.sh dry-run loop {name} {session}
+./scripts/run.sh dry-run pipeline {name} {session}
+
 # Run a loop
 ./scripts/run.sh loop {name} {session} {max_iterations}
 
