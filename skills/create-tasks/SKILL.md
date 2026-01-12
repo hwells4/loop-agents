@@ -41,7 +41,7 @@ options:
     description: "I have a plan somewhere else"
 ```
 
-If they choose to create a PRD, invoke `/agent-pipelines:prd`.
+If they choose to create a PRD, invoke `/agent-pipelines:create-prd`.
 
 ### 2. Analyze the PRD
 
@@ -144,8 +144,8 @@ View beads:    bd list --label=pipeline/{session-name}
 Ready to work: bd ready --label=pipeline/{session-name}
 
 Next steps:
-- Refine beads: /agent-pipelines:refine
-- Launch work loop: /agent-pipelines:loop
+- Refine beads: /refine
+- Start work loop: /ralph
 ```
 
 **IMPORTANT:** The session name must be clearly outputted so other commands can use it.

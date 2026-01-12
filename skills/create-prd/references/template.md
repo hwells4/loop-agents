@@ -121,4 +121,4 @@ Optional section for:
 - Links to relevant calls/discussions
 - Reference materials
 - Design mockups (if they exist)
-- Related Linear projects/issues
+- Related beads or existing issues
