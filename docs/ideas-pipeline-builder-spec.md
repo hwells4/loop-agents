@@ -258,3 +258,181 @@ Benefits:
 **Why now:** The pipeline-builder's architecture agent recommends existing stages. Users will want to tweak them. Making customization frictionless multiplies the value of each base stage. Variants are the extension mechanism.
 
 ---
+
+## Ideas from pipeline-builder-spec - Iteration 3
+
+> Focus: Learning, adaptation, and intelligence—making the pipeline system smarter over time
+
+---
+
+### 11. Pipeline Execution Analytics Dashboard
+
+**Problem:** Users run pipelines but have no aggregate view of what's working. Which stages have the best completion rates? Which pipelines consume the most tokens per successful run? There's no way to identify systemic inefficiencies or track improvement over time.
+
+**Solution:** Build an analytics layer that tracks execution metrics:
+```bash
+./scripts/run.sh analytics
+```
+Displays:
+- **Stage performance**: Average iterations to completion, token efficiency, failure rates
+- **Pipeline performance**: End-to-end completion rates, total cost trends
+- **Termination patterns**: How often judgment stages reach consensus at min_iterations vs max
+- **Time series**: Are pipelines getting more efficient over time?
+
+Data stored in `.claude/analytics/`:
+```json
+{
+  "stage": "elegance",
+  "runs": 47,
+  "avg_iterations": 3.2,
+  "consensus_at_min": 0.68,
+  "avg_tokens": 42000,
+  "failure_rate": 0.02
+}
+```
+
+**Why now:** The pipeline-builder democratizes pipeline creation. Without analytics, users create pipelines blindly. Data-driven insights reveal what stage configurations actually work, informing better architecture agent recommendations.
+
+---
+
+### 12. Architecture Agent Memory: Learning from Past Designs
+
+**Problem:** Every invocation of the architecture agent starts from scratch. It doesn't know which architectures succeeded or failed for similar problems. The agent makes the same recommendations repeatedly, even when historical data suggests better alternatives.
+
+**Solution:** Give the architecture agent access to execution history:
+```markdown
+# Architecture Agent (Enhanced)
+
+## Historical Context
+
+Before recommending, review past executions:
+- `.claude/analytics/by-intent/` - Indexed by problem type
+- `.claude/analytics/successful-runs/` - Completed pipelines
+- `.claude/analytics/failed-runs/` - Failed attempts with failure reasons
+
+Consider:
+- Which stage configurations worked for similar problems?
+- What termination settings led to efficient completion?
+- What patterns correlate with failure?
+
+Weight your recommendations toward proven patterns.
+```
+
+The system indexes executions by:
+- **Intent tags**: "refactoring", "documentation", "testing", etc.
+- **Termination outcomes**: Successful completion, timeout, budget exhaustion
+- **Efficiency metrics**: Iterations used vs. max, token cost
+
+**Why now:** The pipeline-builder spec positions the architecture agent as the critical decision-maker. Learning from history transforms it from "best-guess" to "evidence-based." Each execution makes the system smarter.
+
+---
+
+### 13. Prompt Effectiveness Scoring
+
+**Problem:** Stage prompts are written once and assumed good. But some prompts lead to confused agents, excessive iterations, or low-quality outputs. There's no feedback loop to improve prompts based on execution outcomes.
+
+**Solution:** Score prompt effectiveness based on execution patterns:
+```bash
+./scripts/run.sh prompt-health {stage}
+```
+Outputs:
+```
+Stage: elegance
+Prompt Health Score: 73/100
+
+Metrics:
+- Clarity: 85/100 (agents rarely ask clarifying questions)
+- Efficiency: 62/100 (often exceeds min_iterations before consensus)
+- Consistency: 72/100 (outputs vary in structure)
+
+Improvement Suggestions:
+- Add explicit output format example (would improve consistency)
+- Clarify "quality plateau" criteria (would improve efficiency)
+- Consider adding decision rubric (would accelerate consensus)
+```
+
+Scoring factors:
+- **Clarity**: Low re-reads of context, few clarifying questions
+- **Efficiency**: Completion near min_iterations, low token usage
+- **Consistency**: Similar output structures across runs
+- **Success rate**: Completions vs. errors/timeouts
+
+**Why now:** The Stage Creator Agent generates prompts. Prompt effectiveness scoring provides a feedback signal to improve generation quality. It also helps humans diagnose why a stage isn't performing well.
+
+---
+
+### 14. Smart Defaults from Corpus Analysis
+
+**Problem:** The pipeline-builder spec requires configuration decisions: termination strategies, iteration counts, model selection. Users guess. The architecture agent applies heuristics. But the codebase contains a corpus of real configurations that could inform smarter defaults.
+
+**Solution:** Analyze existing stages and pipelines to derive statistical defaults:
+```bash
+./scripts/run.sh analyze-corpus
+```
+Generates `.claude/corpus-analysis.json`:
+```json
+{
+  "termination_patterns": {
+    "judgment": {
+      "typical_min_iterations": 2,
+      "typical_consensus": 2,
+      "correlation_quality_cost": 0.73
+    },
+    "queue": {
+      "typical_delay": 3,
+      "common_check_before": true
+    }
+  },
+  "model_usage": {
+    "opus": ["planning", "architecture", "quality-review"],
+    "sonnet": ["implementation", "testing"],
+    "haiku": ["validation", "formatting"]
+  },
+  "stage_relationships": {
+    "refine_before_work": 0.85,
+    "elegance_at_end": 0.90
+  }
+}
+```
+
+The architecture agent consults this analysis:
+- "For judgment stages, corpus shows consensus=2 works in 80% of cases"
+- "For implementation work, sonnet is sufficient in 70% of pipelines"
+- "Quality review stages typically follow implementation"
+
+**Why now:** The pipeline-builder creates new configurations. Without corpus intelligence, every new pipeline reinvents wheel. Mining existing patterns accelerates configuration with proven values.
+
+---
+
+### 15. Semantic Stage Similarity Search
+
+**Problem:** Users describe what they want ("a stage that reviews code for security issues") but don't know which existing stages might fit. The architecture agent recommends, but its knowledge is static. Users can't search by intent.
+
+**Solution:** Add semantic search over stage definitions:
+```bash
+./scripts/run.sh stage search "security review for vulnerabilities"
+```
+Returns:
+```
+Matches:
+1. elegance (score: 0.72)
+   - Similarity: Also does code review
+   - Difference: Focus is style, not security
+   - Variant suggestion: Clone with security lens
+
+2. refine-beads (score: 0.54)
+   - Similarity: Quality improvement iterations
+   - Difference: Operates on beads, not code
+
+Recommendation: No direct match. Create new stage or clone elegance with security focus.
+```
+
+Implementation:
+- Embed stage descriptions and prompt content
+- Store embeddings in `.claude/stage-embeddings/`
+- Search via cosine similarity on user query
+- Include in architecture agent context
+
+**Why now:** The pipeline-builder encourages stage reuse. Semantic search makes discovery frictionless. Users find existing stages or near-matches before creating new ones. This compounds the value of each new stage added to the system.
+
+---
