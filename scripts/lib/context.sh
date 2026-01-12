@@ -5,6 +5,64 @@
 # The context manifest replaces 9+ template variables with a single
 # structured JSON file that agents can read for all session context.
 
+# Calculate remaining runtime in seconds
+# Usage: calculate_remaining_time "$run_dir" "$stage_config"
+# Returns: remaining seconds, or -1 if no limit configured
+calculate_remaining_time() {
+  local run_dir=$1
+  local stage_config=$2
+
+  # Get max runtime from config (check guardrails.max_runtime_seconds first, then top-level)
+  local max_runtime=$(echo "$stage_config" | jq -r '.guardrails.max_runtime_seconds // .max_runtime_seconds // -1')
+
+  # If no limit configured, return -1
+  if [ "$max_runtime" = "-1" ] || [ "$max_runtime" = "null" ] || [ -z "$max_runtime" ]; then
+    echo "-1"
+    return
+  fi
+
+  # Get started_at from state.json
+  local state_file="$run_dir/state.json"
+  if [ ! -f "$state_file" ]; then
+    echo "$max_runtime"  # Full time if no state yet
+    return
+  fi
+
+  local started_at=$(jq -r '.started_at // ""' "$state_file" 2>/dev/null)
+  if [ -z "$started_at" ] || [ "$started_at" = "null" ]; then
+    echo "$max_runtime"
+    return
+  fi
+
+  # Calculate elapsed time (cross-platform: macOS uses -j -f, Linux uses -d)
+  # Note: timestamps are in UTC (ISO 8601 with Z suffix)
+  local started_epoch
+  # macOS: parse UTC timestamp
+  started_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%SZ" "$started_at" "+%s" 2>/dev/null)
+  if [ -z "$started_epoch" ]; then
+    # Linux fallback: -d handles ISO 8601 with Z suffix correctly
+    started_epoch=$(date -d "$started_at" "+%s" 2>/dev/null)
+  fi
+  if [ -z "$started_epoch" ]; then
+    # Can't parse date, return full time
+    echo "$max_runtime"
+    return
+  fi
+
+  local now_epoch=$(date -u "+%s")
+  local elapsed=$((now_epoch - started_epoch))
+
+  # Calculate remaining
+  local remaining=$((max_runtime - elapsed))
+
+  # Return 0 if negative (time exceeded)
+  if [ "$remaining" -lt 0 ]; then
+    echo "0"
+  else
+    echo "$remaining"
+  fi
+}
+
 # Generate context.json for an iteration
 # Usage: generate_context "$session" "$iteration" "$stage_config" "$run_dir"
 # Returns: path to generated context.json
@@ -38,7 +96,7 @@ generate_context() {
 
   # Get limits from stage config
   local max_iterations=$(echo "$stage_config" | jq -r '.max_iterations // 50')
-  local remaining_seconds=-1  # Runtime guardrails not implemented
+  local remaining_seconds=$(calculate_remaining_time "$run_dir" "$stage_config")
 
   # Read pipeline name from state if available
   local pipeline=""

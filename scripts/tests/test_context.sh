@@ -139,9 +139,106 @@ test_resolve_legacy_json_still_works() {
 }
 
 #-------------------------------------------------------------------------------
+# Remaining Time Calculation Tests
+#-------------------------------------------------------------------------------
+
+test_remaining_time_no_limit_configured() {
+  local test_dir=$(mktemp -d)
+  local stage_config='{"id": "work", "name": "work", "index": 0}'
+
+  local remaining=$(calculate_remaining_time "$test_dir" "$stage_config")
+
+  assert_eq "-1" "$remaining" "No limit configured returns -1"
+
+  rm -rf "$test_dir"
+}
+
+test_remaining_time_with_limit_no_state() {
+  local test_dir=$(mktemp -d)
+  local stage_config='{"id": "work", "name": "work", "index": 0, "max_runtime_seconds": 3600}'
+
+  # No state.json exists yet
+  local remaining=$(calculate_remaining_time "$test_dir" "$stage_config")
+
+  assert_eq "3600" "$remaining" "Full time returned when no state exists"
+
+  rm -rf "$test_dir"
+}
+
+test_remaining_time_calculates_correctly() {
+  local test_dir=$(mktemp -d)
+  local stage_config='{"id": "work", "name": "work", "index": 0, "max_runtime_seconds": 3600}'
+
+  # Create state.json with started_at 60 seconds ago
+  local started_at=$(date -u -v-60S +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '60 seconds ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+  echo "{\"started_at\": \"$started_at\"}" > "$test_dir/state.json"
+
+  local remaining=$(calculate_remaining_time "$test_dir" "$stage_config")
+
+  # Should be approximately 3540 (3600 - 60), allow 5 second tolerance
+  local expected_min=3535
+  local expected_max=3545
+
+  if [ "$remaining" -ge "$expected_min" ] && [ "$remaining" -le "$expected_max" ]; then
+    assert_true "true" "Remaining time calculated correctly (~3540s)"
+  else
+    assert_eq "~3540" "$remaining" "Remaining time calculated correctly"
+  fi
+
+  rm -rf "$test_dir"
+}
+
+test_remaining_time_returns_zero_when_exceeded() {
+  local test_dir=$(mktemp -d)
+  local stage_config='{"id": "work", "name": "work", "index": 0, "max_runtime_seconds": 60}'
+
+  # Create state.json with started_at 120 seconds ago (exceeded)
+  local started_at=$(date -u -v-120S +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '120 seconds ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+  echo "{\"started_at\": \"$started_at\"}" > "$test_dir/state.json"
+
+  local remaining=$(calculate_remaining_time "$test_dir" "$stage_config")
+
+  assert_eq "0" "$remaining" "Returns 0 when time exceeded"
+
+  rm -rf "$test_dir"
+}
+
+test_remaining_time_guardrails_block() {
+  local test_dir=$(mktemp -d)
+  # Test with guardrails.max_runtime_seconds (plan schema)
+  local stage_config='{"id": "work", "name": "work", "index": 0, "guardrails": {"max_runtime_seconds": 7200}}'
+
+  local remaining=$(calculate_remaining_time "$test_dir" "$stage_config")
+
+  assert_eq "7200" "$remaining" "Reads from guardrails.max_runtime_seconds"
+
+  rm -rf "$test_dir"
+}
+
+test_context_remaining_seconds_populated() {
+  local test_dir=$(mktemp -d)
+  local stage_config='{"id": "work", "name": "work", "index": 0, "max_runtime_seconds": 3600}'
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$test_dir")
+
+  local remaining=$(jq -r '.limits.remaining_seconds' "$context_file")
+
+  # Should be 3600 since no state.json existed before generate_context created it
+  assert_eq "3600" "$remaining" "remaining_seconds populated in context.json"
+
+  rm -rf "$test_dir"
+}
+
+#-------------------------------------------------------------------------------
 # Run Tests
 #-------------------------------------------------------------------------------
 
+run_test "Remaining time: no limit configured" test_remaining_time_no_limit_configured
+run_test "Remaining time: with limit, no state" test_remaining_time_with_limit_no_state
+run_test "Remaining time: calculates correctly" test_remaining_time_calculates_correctly
+run_test "Remaining time: returns 0 when exceeded" test_remaining_time_returns_zero_when_exceeded
+run_test "Remaining time: reads guardrails block" test_remaining_time_guardrails_block
+run_test "Context remaining_seconds populated" test_context_remaining_seconds_populated
 run_test "Context file generated" test_context_file_generated
 run_test "Context JSON structure" test_context_json_structure
 run_test "Context paths populated" test_context_paths_populated
