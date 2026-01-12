@@ -1,5 +1,5 @@
 ---
-description: Spin up a Ralph loop - the simplest way to run autonomous iterations on a task queue
+description: Start a Ralph loop in less than ~15 seconds. Uses 'beads' for task management.
 ---
 
 # /ralph
@@ -35,7 +35,12 @@ Options:
 
 Once you have answers:
 
-1. **Verify tasks exist:**
+1. **Tell the user what's about to happen:**
+```
+I'm going to spawn an autonomous agent in a tmux session. It will work through your tasks independently.
+```
+
+2. **Verify tasks exist:**
 ```bash
 # For beads:
 bd ready --label={label} | head -5
@@ -44,14 +49,14 @@ bd ready --label={label} | head -5
 cat {file} | head -10
 ```
 
-2. **Derive session name** from the label or file (e.g., `pipeline/auth` → `auth`, `tasks/feature.md` → `feature`)
+3. **Derive session name** from the label or file (e.g., `pipeline/auth` → `auth`, `tasks/feature.md` → `feature`)
 
-3. **Start the work pipeline:**
+4. **Start the work pipeline:**
 ```bash
 ./scripts/run.sh work {session} {iterations}
 ```
 
-4. **Confirm to user:**
+5. **Confirm to user:**
 ```
 Started pipeline '{session}' with max {iterations} iterations.
 
