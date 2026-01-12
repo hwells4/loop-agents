@@ -85,8 +85,8 @@ After completing your work, write your status to `${STATUS}`:
 ```
 
 **Decision guide:**
-- `"continue"` - Work completed, but more beads remain
-- `"stop"` - All beads complete (queue empty)
+- `"continue"` - Work completed, ready for next iteration
+- `"stop"` - Queue empty, no more beads to work on
 - `"error"` - Something went wrong (tests fail, blocked, etc.)
 
 ## Stop Condition
@@ -96,4 +96,4 @@ Check if any work remains:
 bd ready --label=loop/${SESSION_NAME}
 ```
 
-If no stories returned (empty output), all work is complete. Set decision to "stop" in your status.
+If no beads returned (empty output), all work is complete. Set decision to "stop".

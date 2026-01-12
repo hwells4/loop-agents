@@ -1,11 +1,10 @@
-# Work Stage - Implementation from beads
-# Iterates until all beads for this session are complete
+# Work Stage - Traditional Ralph loop
+# Runs N iterations, fresh agent each time
 
 name: work
-description: Implement features from beads until done
+description: Traditional Ralph loop - implement tasks from beads
 
 termination:
-  type: queue
+  type: fixed
 
-check_before: true
 delay: 3
