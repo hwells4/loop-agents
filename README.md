@@ -91,36 +91,13 @@ Or just talk to Claude naturally:
 
 ## How It Works
 
-Run `/sessions` and tell Claude what you're working on:
-
-1. **Planning phase**: Claude gathers context through adaptive questioning, generates a PRD, and breaks it into discrete tasks (beads)
-2. **Loop launch**: Claude spawns a tmux session running the loop engine
-3. **Iteration cycle**: Each iteration, a fresh Claude instance reads the progress file, picks a task, implements it, commits, and updates progress
-4. **Completion**: When work is done (all tasks complete, or quality has plateaued), you get a desktop notification
-
 ```
-You describe work → Claude plans → tmux loop spawns → Fresh Claude per task → Desktop notification
+/sessions → describe work → PRD + tasks created → loop runs in tmux → done
 ```
 
-The loop runs **independently** of your Claude Code session. You can:
-- Continue working on other things while loops run
-- Attach to watch live progress (`/sessions attach`)
-- Spin up multiple loops for parallel work
-- Recover if Claude Code crashes—loops keep running in tmux
+Each iteration: fresh Claude reads progress file → picks task → implements → commits → updates progress. Loop stops when queue empties or agents agree quality plateaued.
 
-### Why Fresh Agents?
-
-The core insight of the [Ralph loop pattern](https://ghuntley.com/ralph/) is that **fresh agents per iteration prevent context degradation**.
-
-Traditional approaches keep a single agent running across multiple tasks. As the context window fills with previous work, responses become less coherent and the agent loses sight of original goals. Token accumulation degrades quality.
-
-The Ralph loop inverts this:
-- Each iteration spawns a **completely fresh Claude instance**
-- The fresh agent reads a **progress file** with accumulated learnings
-- The progress file is curated: only essential context, not raw conversation history
-- Result: iteration 25 has the same quality as iteration 1
-
-This is why planning tokens are cheaper than implementation tokens. A well-structured progress file compresses hours of work into pages of context. Fresh agents read this compressed context and maintain full capability.
+Loops run independently. Attach to watch (`/sessions attach`), run multiple in parallel, close your terminal—they keep going.
 
 ## Stage Types
 
