@@ -245,8 +245,19 @@ run_stage() {
       echo ""
     fi
 
-    # Get status file path (in iteration directory alongside context.json)
-    local status_file="$(dirname "$context_file")/status.json"
+    # Get iteration directory path (from context file location)
+    local iter_dir="$(dirname "$context_file")"
+    local status_file="$iter_dir/status.json"
+
+    # Phase 3: Save output snapshot to iteration directory
+    if [ -n "$output" ]; then
+      echo "$output" > "$iter_dir/output.md"
+    fi
+
+    # Phase 3: Create error status if agent didn't write status.json
+    if [ ! -f "$status_file" ]; then
+      create_error_status "$status_file" "Agent did not write status.json"
+    fi
 
     # Parse output (legacy support) and merge with status.json data
     local output_json="{}"

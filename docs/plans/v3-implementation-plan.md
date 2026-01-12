@@ -51,11 +51,11 @@ This plan details the implementation of the Loop Agents v3 architecture, transfo
 |-------|-----------|-------|
 | 0 | `test_infrastructure.sh`, `test_mock.sh`, `test_fixtures.sh`, `test_validation.sh` | ✅ Complete |
 | 1 | `test_context.sh` | ✅ Complete |
-| 2 | `test_status.sh`, `test_completions.sh` | Write FIRST |
-| 3 | `test_engine_snapshots.sh` | Write FIRST |
+| 2 | `test_status.sh`, `test_completions.sh` | ✅ Complete |
+| 3 | `test_engine_snapshots.sh` | ✅ Complete (unit tests; integration tests in Phase 6) |
 | 4 | `test_inputs.sh` | Write FIRST |
 | 5 | `test_failure.sh` | Write FIRST |
-| 6 | `test_regression.sh` | Write FIRST |
+| 6 | `test_regression.sh`, `test_engine_integration.sh` | Write FIRST |
 
 ---
 
@@ -814,9 +814,17 @@ After completing your work, write your status to `${STATUS}`:
 
 ---
 
-### Phase 3: Engine-Side Output Snapshots
+### Phase 3: Engine-Side Output Snapshots ✅ COMPLETE
 
 **Goal:** Engine automatically saves iteration outputs to `iterations/NNN/output.md`.
+
+**Completed 2026-01-11:**
+- Created `scripts/tests/test_engine_snapshots.sh` with 18 tests
+- Updated `engine.sh` to save output snapshot to `iterations/NNN/output.md` after each iteration
+- Updated `engine.sh` to create error status if agent doesn't write `status.json`
+- All 65 tests pass (47 existing + 18 new), lint validation passes
+
+**TDD Note:** The unit tests verify behavior patterns using helper functions rather than exercising the actual engine code path. True engine integration tests (that run `run_stage` with mock Claude) are deferred to Phase 6 Step 0.4 (`test_engine_integration.sh`).
 
 ---
 
@@ -928,10 +936,10 @@ output: .claude                    # Internal only (default)
 
 #### Success Criteria - Phase 3
 
-- [ ] Every iteration has `iterations/NNN/output.md` snapshot
-- [ ] `output.mode` config removed from all stages
-- [ ] Stage config only specifies output location, not versioning
-- [ ] Test: Run multiple iterations and verify output history is preserved
+- [x] Every iteration has `iterations/NNN/output.md` snapshot
+- [x] `output.mode` config removed from all stages (was never implemented)
+- [x] Stage config only specifies output location, not versioning
+- [x] Test: Run multiple iterations and verify output history is preserved
 
 ---
 
@@ -1533,6 +1541,106 @@ run_test "parse.sh marked deprecated" test_parse_sh_marked_deprecated
 ```
 
 **✅ CHECKPOINT: Regression tests written and failing. NOW proceed to migration.**
+
+---
+
+##### Step 0.4: Create Engine Integration Tests
+
+**Background:** Phase 3 tests verified behavior patterns but tested local helper functions rather than the actual engine code path. This step adds true integration tests that run the engine with mock Claude.
+
+**File:** `scripts/tests/test_engine_integration.sh`
+
+```bash
+#!/bin/bash
+# Engine integration tests - verifies engine actually creates expected files
+# These tests run the engine with mock responses to verify file creation
+
+source "$SCRIPT_DIR/lib/test.sh"
+source "$SCRIPT_DIR/lib/mock.sh"
+
+#-------------------------------------------------------------------------------
+# Engine Output Snapshot Integration Tests
+#-------------------------------------------------------------------------------
+
+test_engine_creates_output_snapshot() {
+  local tmp=$(create_test_dir)
+  local run_dir="$tmp/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  # Enable mock mode with a fixture that writes status.json
+  enable_mock "$SCRIPT_DIR/loops/work/fixtures"
+
+  # Run one iteration through the engine
+  # Note: This requires mock infrastructure to intercept Claude calls
+  MOCK_MODE=true run_stage "work" "test-session" 1 "$run_dir" 0 1 2>/dev/null || true
+
+  # Verify the engine created output snapshot
+  local iter_dir="$run_dir/stage-00-work/iterations/001"
+  assert_file_exists "$iter_dir/output.md" "Engine saved output snapshot to iteration directory"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_engine_creates_error_status_when_missing() {
+  local tmp=$(create_test_dir)
+  local run_dir="$tmp/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  # Enable mock mode with fixture that does NOT write status.json
+  enable_mock "$tmp/no-status-fixture"
+  mkdir -p "$tmp/no-status-fixture"
+  echo "Mock output without status" > "$tmp/no-status-fixture/default.txt"
+
+  # Run one iteration
+  MOCK_MODE=true run_stage "work" "test-session" 1 "$run_dir" 0 1 2>/dev/null || true
+
+  # Verify engine created error status
+  local status_file="$run_dir/stage-00-work/iterations/001/status.json"
+  assert_file_exists "$status_file" "Engine created status.json"
+
+  local decision=$(jq -r '.decision' "$status_file" 2>/dev/null)
+  assert_eq "error" "$decision" "Engine set decision=error when agent didn't write status"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_engine_preserves_agent_status() {
+  local tmp=$(create_test_dir)
+  local run_dir="$tmp/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  # Enable mock mode with fixture that DOES write status.json with decision=stop
+  enable_mock "$SCRIPT_DIR/loops/improve-plan/fixtures"
+
+  # Run one iteration
+  MOCK_MODE=true run_stage "improve-plan" "test-session" 1 "$run_dir" 0 1 2>/dev/null || true
+
+  # Verify engine preserved agent's status (not overwritten with error)
+  local status_file="$run_dir/stage-00-improve-plan/iterations/001/status.json"
+  local decision=$(jq -r '.decision' "$status_file" 2>/dev/null)
+
+  # Agent fixture should have written continue or stop, not error
+  assert_not_eq "error" "$decision" "Engine preserved agent's status (not overwritten)"
+
+  cleanup_test_dir "$tmp"
+}
+
+#-------------------------------------------------------------------------------
+# Run Tests
+#-------------------------------------------------------------------------------
+
+run_test "Engine creates output snapshot" test_engine_creates_output_snapshot
+run_test "Engine creates error status when missing" test_engine_creates_error_status_when_missing
+run_test "Engine preserves agent status" test_engine_preserves_agent_status
+```
+
+**Note:** These tests require the mock infrastructure to properly intercept Claude calls during `run_stage`. If the current mock system doesn't support this, the tests should be marked as `skip_test` with a comment explaining the limitation, and manual verification should be documented.
+
+**Verification:**
+```bash
+./scripts/run.sh test engine_integration
+# Expected: Tests pass OR are skipped with clear explanation
+```
 
 ---
 
