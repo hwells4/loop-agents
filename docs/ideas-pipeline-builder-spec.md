@@ -436,3 +436,221 @@ Implementation:
 **Why now:** The pipeline-builder encourages stage reuse. Semantic search makes discovery frictionless. Users find existing stages or near-matches before creating new ones. This compounds the value of each new stage added to the system.
 
 ---
+
+## Ideas from pipeline-builder-spec - Iteration 4
+
+> Focus: Composability, error resilience, and external integration—making pipelines more flexible, robust, and connected
+
+---
+
+### 16. Stage Parameterization for Reusable Templates
+
+**Problem:** Stages are currently monolithic—`elegance` is always elegance. But users often want "elegance but stricter" or "elegance for security". The only options are to clone entire stages (duplicating prompt content) or live with the default configuration. This limits reuse.
+
+**Solution:** Add parameterized stages that accept configuration at invocation time:
+```yaml
+# scripts/loops/code-review/loop.yaml
+name: code-review
+description: General code review with configurable focus
+parameters:
+  - name: focus
+    description: What aspect to emphasize
+    default: "general quality"
+  - name: strictness
+    type: enum
+    values: [lenient, balanced, strict]
+    default: balanced
+```
+
+Pipeline configuration uses parameters:
+```yaml
+stages:
+  - name: security-review
+    loop: code-review
+    runs: 5
+    with:
+      focus: "security vulnerabilities and OWASP top 10"
+      strictness: strict
+
+  - name: style-review
+    loop: code-review
+    runs: 3
+    with:
+      focus: "code style and naming conventions"
+      strictness: balanced
+```
+
+The prompt accesses parameters via `${PARAMS.focus}` and `${PARAMS.strictness}`.
+
+**Why now:** The pipeline-builder creates stages for users. Parameters enable a single well-designed stage to serve many purposes. This dramatically increases ROI on stage development—one investment, many applications.
+
+---
+
+### 17. Webhook Callbacks for External Integration
+
+**Problem:** Pipelines run in isolation. External systems (Slack, CI/CD, monitoring) have no visibility into progress or completion. Users must manually check status. Integration requires custom scripting.
+
+**Solution:** Add webhook configuration at pipeline and stage boundaries:
+```yaml
+name: my-pipeline
+webhooks:
+  on_start: https://hooks.slack.com/T.../B.../xxx
+  on_stage_complete: https://api.example.com/pipeline-events
+  on_complete: https://hooks.slack.com/T.../B.../yyy
+  on_error: https://pagerduty.com/integration/xxx
+
+stages:
+  - name: critical-stage
+    loop: analyze
+    webhooks:
+      on_complete:
+        url: https://api.example.com/critical-complete
+        include_output: true
+```
+
+Webhook payload:
+```json
+{
+  "event": "stage_complete",
+  "pipeline": "my-pipeline",
+  "session": "auth-feature",
+  "stage": "critical-stage",
+  "iteration": 5,
+  "status": "success",
+  "summary": "Identified 3 security issues",
+  "timestamp": "2026-01-12T10:30:00Z"
+}
+```
+
+**Why now:** Pipelines are becoming the standard execution model for complex work. External visibility is essential for team adoption—managers need status updates, CI systems need completion signals, and monitoring needs error alerts.
+
+---
+
+### 18. Intelligent Retry Strategies with Backoff
+
+**Problem:** When iterations fail (API timeout, rate limit, transient error), the pipeline treats it as a hard failure. The only recovery is manual `--resume`. This is fragile for production use—transient failures shouldn't require human intervention.
+
+**Solution:** Add configurable retry strategies:
+```yaml
+name: my-stage
+retry:
+  max_attempts: 3
+  backoff:
+    type: exponential  # linear, exponential, fixed
+    initial: 5s
+    max: 60s
+  on_errors:
+    - "rate_limit"
+    - "timeout"
+    - "api_error"
+  exclude_errors:
+    - "validation_error"
+    - "status_parse_error"
+```
+
+Retry behavior:
+- On transient error, wait `backoff` seconds and retry same iteration
+- Errors categorized by pattern matching on Claude output
+- After `max_attempts`, mark as failed (or fallback to error webhook)
+- State file tracks retry attempts for visibility
+
+Pipeline-level defaults:
+```yaml
+name: production-pipeline
+defaults:
+  retry:
+    max_attempts: 3
+    backoff:
+      type: exponential
+      initial: 5s
+```
+
+**Why now:** As pipelines run longer and with more iterations, transient failures become inevitable. API rate limits, network hiccups, and temporary service issues shouldn't derail multi-hour pipelines. Retry is table-stakes for production reliability.
+
+---
+
+### 19. Interactive Pipeline Debugger
+
+**Problem:** When a stage behaves unexpectedly, debugging requires manual inspection: read the progress file, check iteration outputs, examine status.json. There's no unified debugging experience. Understanding "what went wrong at iteration 7" requires archaeology.
+
+**Solution:** Add `./scripts/run.sh debug {session}` with interactive capabilities:
+```
+$ ./scripts/run.sh debug auth-feature
+
+Pipeline Debugger: auth-feature
+Stage: improve-plan (iteration 7/10)
+Status: running
+
+Commands:
+  [s]tatus    - Show current state and recent history
+  [i]teration N - Jump to iteration N output
+  [p]rogress  - Show progress file
+  [c]ontext   - Show context.json for current iteration
+  [d]iff N M  - Diff iteration N vs M outputs
+  [t]imeline  - Show iteration timeline with decisions
+  [l]og       - Tail Claude execution log
+  [w]atch     - Live watch mode (auto-refresh)
+  [q]uit      - Exit debugger
+
+> timeline
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ improve-plan: auth-feature                                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1 ────▶ 2 ────▶ 3 ────▶ 4 ────▶ 5 ────▶ 6 ────▶ 7 (running)              │
+│ cont   cont    cont    cont    stop    cont*   ...                        │
+│ 42k    38k     51k     29k     35k     41k                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+* = override: plateau broken by iteration 6 (new issue discovered)
+
+> iteration 5
+Iteration 5 (completed 10:23:15, decision: stop)
+Reason: "All identified improvements have been applied..."
+Files touched: [PLAN.md, docs/architecture.md]
+```
+
+**Why now:** The pipeline-builder empowers users to create complex multi-stage pipelines. Complexity breeds failure modes. A first-class debugging experience is essential for troubleshooting. Current approach (manual file inspection) doesn't scale.
+
+---
+
+### 20. Partial Completion Handling with Savepoints
+
+**Problem:** If a pipeline fails mid-stage, the only options are resume (redo the failed iteration) or restart (lose all progress). There's no way to salvage partial progress within an iteration. Long iterations might do useful work before failing—that work is lost.
+
+**Solution:** Add savepoint capability for mid-iteration preservation:
+```yaml
+name: long-stage
+savepoints:
+  enabled: true
+  interval: 60s          # Auto-save every 60 seconds
+  on_file_change: true   # Save when files are modified
+```
+
+Engine behavior:
+- Monitor iteration progress (file modifications, progress updates)
+- Create timestamped savepoints: `.claude/savepoints/{session}/{iteration}/{timestamp}/`
+- On failure: offer rollback options
+```
+$ ./scripts/run.sh status auth-feature
+
+Pipeline: auth-feature
+Status: FAILED at stage improve-plan, iteration 7
+
+Savepoints available:
+  1. 10:23:15 (3 files modified, 2 beads closed)
+  2. 10:24:30 (5 files modified, 3 beads closed)
+  3. 10:25:45 (5 files modified, 4 beads closed) <-- most recent
+
+Options:
+  [1-3] Restore savepoint and continue
+  [r]esume - Retry iteration 7 from scratch
+  [a]bort  - Stop pipeline
+```
+
+On restore:
+- Roll back file modifications to savepoint state
+- Update progress file to reflect restored state
+- Continue from savepoint context
+
+**Why now:** As iterations do more work (especially work stages that modify many files), mid-iteration failures become costly. Savepoints provide insurance against lost work. This is especially critical for expensive Opus iterations that might run for minutes.
+
+---
