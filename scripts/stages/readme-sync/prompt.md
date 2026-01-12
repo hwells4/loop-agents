@@ -6,6 +6,8 @@ Output file: ${OUTPUT_PATH}
 Status file: ${STATUS}
 Iteration: ${ITERATION}
 
+OK, we have made tons of recent changes that aren't yet reflected in the README file. First, reread AGENTS dot md so it's still fresh in your mind. Use ultrathink. Now, we need to revise the README for these changes (don't write about them as'changes' however, make it read like it was always like that, since we don't have any users yet!).  
+
 ## Your Task
 
 Analyze the codebase and update README.md to reflect current functionality. Find implemented features that are missing, under-documented, under-explained, or under-justified in the README.
@@ -57,7 +59,9 @@ Look for:
 - **Under-explained** - Mentioned but lacks detail
 - **Under-justified** - What but not why
 
-### Step 4: Update README Directly
+### Step 4:  Now with that context, what else can we put in there to make the README longer and more detailed about what we built, why it's useful, how it works, the algorithms/design principles used, etc? This should be incremental NEW content, not replacement for what is there already.  
+
+### Step 5: Update README Directly
 
 Make actual edits to README.md. Write as if features were always there (not "we added X" or "recent changes"). Add:
 - Clear descriptions
