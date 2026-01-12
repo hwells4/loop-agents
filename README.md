@@ -1,44 +1,37 @@
 # Agent Pipelines
 
-A Claude Code plugin for creating and running [Ralph loop](https://ghuntley.com/ralph/) pipelines. Spawn background loops that work autonomously until the job is done.
+Run Claude in a loop until the job is done.
 
-Describe what you want to build, and Claude handles the rest: planning, task breakdown, and running loops in the background. You can attach to watch progress, spin up multiple loops at once, or chain them into multi-stage pipelines.
+The problem with long-running agents is context degradation. As the conversation grows, quality drops. Agent Pipelines fixes this with [Ralph loops](https://ghuntley.com/ralph/): each iteration spawns a fresh Claude that reads a progress file. Iteration 50 is as sharp as iteration 1.
 
-**What you get:**
-- Loops run in tmux, not your terminal. Attach, detach, let them run overnight.
-- Multiple loops at once for parallel features.
-- Planning workflow: PRD → tasks → implementation loop.
-- Multi-stage pipelines to chain loops together.
-- Crash recovery with automatic resume.
-- Session locking prevents duplicate runs.
-- Built-in validation, linting, and dry-run preview.
-- Mock execution mode for testing without API calls.
-
-**Core philosophy:** Fresh agent per iteration prevents context degradation. Two-agent consensus prevents premature stopping. Planning tokens are cheaper than implementation tokens.
+Loops run in tmux. Start one, close your laptop, check back tomorrow.
 
 ## Build Your Own Stages
 
-Agent Pipelines is also a framework for creating custom stage types. Each stage has:
+A stage is a prompt plus a termination strategy. That's it.
 
-- A **prompt** that tells Claude what to do each iteration
-- A **termination strategy** that decides when to stop
+```yaml
+# scripts/stages/bugfix/stage.yaml
+name: bugfix
+termination:
+  type: judgment    # stop when 2 agents agree
+  consensus: 2
+```
 
-Built-in termination strategies:
+Three termination types:
 
-| Strategy | When it stops | Good for |
-|----------|---------------|----------|
-| `queue` | All tasks done (`bd ready` returns empty) | Implementation loops |
-| `judgment` | Two agents agree quality plateaued | Refinement, review, elegance |
-| `fixed` | After N iterations or agent requests stop | Brainstorming, documentation |
+| Type | Stops when | Use for |
+|------|------------|---------|
+| `queue` | Task queue empty | Implementation |
+| `judgment` | N agents agree to stop | Refinement, review |
+| `fixed` | N iterations done | Brainstorming |
 
-**Example:** You want a bug-fix loop that keeps finding and fixing bugs until it stops finding new ones. Create a stage with `termination: { type: judgment }`. Run it with max 15 iterations. It might stop at 7 when two consecutive runs agree there's nothing left to fix.
-
-Scaffold a new stage in seconds:
+Scaffold a new stage:
 ```bash
 /agent-pipelines:build-stage bugfix
 ```
 
-This creates `scripts/stages/bugfix/` with a config and prompt template. Edit the prompt, pick your termination strategy, done.
+Edit the prompt, run it. The framework handles iteration, state, crash recovery, and knowing when to stop.
 
 ## Installation
 
