@@ -108,7 +108,7 @@ All agents must complete successfully.
 
 For each completed agent, verify files exist:
 ```bash
-test -f scripts/stages/{stage}/loop.yaml && echo "OK" || echo "MISSING"
+test -f scripts/stages/{stage}/stage.yaml && echo "OK" || echo "MISSING"
 test -f scripts/stages/{stage}/prompt.md && echo "OK" || echo "MISSING"
 ```
 
@@ -191,7 +191,7 @@ Show the output to user:
 ## Stage Created
 
 **Files:**
-- `scripts/stages/{name}/loop.yaml`
+- `scripts/stages/{name}/stage.yaml`
 - `scripts/stages/{name}/prompt.md`
 
 **Lint:** PASSED
@@ -213,8 +213,8 @@ Show the output to user:
 ## Pipeline Created
 
 **New Stages:**
-- `scripts/stages/{stage1}/` (loop.yaml, prompt.md)
-- `scripts/stages/{stage2}/` (loop.yaml, prompt.md)
+- `scripts/stages/{stage1}/` (stage.yaml, prompt.md)
+- `scripts/stages/{stage2}/` (stage.yaml, prompt.md)
 
 **Pipeline:**
 - `scripts/pipelines/{name}.yaml`

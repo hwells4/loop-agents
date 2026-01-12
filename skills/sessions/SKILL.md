@@ -1,10 +1,10 @@
 ---
 name: sessions
-description: Manage autonomous loop agent sessions running in tmux background. Start, list, monitor, attach, kill, and clean up pipeline sessions.
+description: Manage autonomous pipeline sessions running in tmux background. Start, list, monitor, attach, kill, and clean up pipeline sessions.
 ---
 
 <objective>
-Provide a unified interface for managing loop agent sessions. Sessions are autonomous pipelines that run in tmux, executing iteratively until completion. This skill handles the full lifecycle: starting new sessions, monitoring progress, managing conflicts, and cleaning up resources.
+Provide a unified interface for managing pipeline sessions. Sessions are autonomous pipelines that run in tmux, executing iteratively until completion. This skill handles the full lifecycle: starting new sessions, monitoring progress, managing conflicts, and cleaning up resources.
 </objective>
 
 <essential_principles>

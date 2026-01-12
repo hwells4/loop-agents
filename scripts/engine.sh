@@ -69,9 +69,9 @@ load_stage() {
   fi
 
   # Load config YAML as JSON
-  local config_file="$stage_dir/loop.yaml"
+  local config_file="$stage_dir/stage.yaml"
   if [ ! -f "$config_file" ]; then
-    echo "Error: No loop.yaml in $stage_dir" >&2
+    echo "Error: No stage.yaml in $stage_dir" >&2
     return 1
   fi
 

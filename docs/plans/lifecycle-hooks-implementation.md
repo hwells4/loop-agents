@@ -61,7 +61,7 @@ Add hook points that execute shell commands at key moments in the session lifecy
 
 ## Configuration
 
-### Per-Loop Configuration (loop.yaml)
+### Per-Loop Configuration (stage.yaml)
 
 ```yaml
 name: my-loop
@@ -102,9 +102,9 @@ on_error() {
 
 ### Hook Priority
 
-1. Loop-specific hooks (loop.yaml) run first
+1. Loop-specific hooks (stage.yaml) run first
 2. Global hooks (~/.config/agent-pipelines/hooks.sh) run second
-3. Either can be disabled with `hooks.disable_global: true` in loop.yaml
+3. Either can be disabled with `hooks.disable_global: true` in stage.yaml
 
 ## Environment Variables
 
@@ -265,7 +265,7 @@ send_slack_notification() {
 ### Phase 1: Core Hook Infrastructure
 1. Create `scripts/lib/hooks.sh`
 2. Add hook points to `engine.sh`
-3. Support loop-specific hooks in `loop.yaml`
+3. Support loop-specific hooks in `stage.yaml`
 4. Test with simple echo hooks
 
 ### Phase 2: Global Hooks
@@ -701,7 +701,7 @@ hooks:
 
 ### Phase 6: Nested Pipelines
 1. Create `scripts/lib/spawn.sh`
-2. Add checkpoint configuration to loop.yaml schema
+2. Add checkpoint configuration to stage.yaml schema
 3. Implement child session directory structure
 4. Add `spawn` as checkpoint action
 5. Test with code-review example

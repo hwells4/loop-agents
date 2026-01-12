@@ -242,7 +242,7 @@ All actions receive context via environment:
 
 ## Configuration Locations
 
-### Per-Stage (loop.yaml)
+### Per-Stage (stage.yaml)
 
 ```yaml
 name: work
@@ -299,7 +299,7 @@ hooks:
 ### Disable Global Hooks
 
 ```yaml
-# In loop.yaml or pipeline.yaml
+# In stage.yaml or pipeline.yaml
 disable_global_hooks: true
 ```
 

@@ -217,7 +217,7 @@ scripts/
 
 ### Loop Configuration
 
-Each stage type is defined by a `loop.yaml`:
+Each stage type is defined by a `stage.yaml`:
 
 ```yaml
 name: work

@@ -59,7 +59,7 @@ QUEUE_CONFIG='{"dir":"todos"}'    # Provider-specific config as JSON
 ### Configuration Schema
 
 ```yaml
-# scripts/stages/work/loop.yaml
+# scripts/stages/work/stage.yaml
 name: work
 description: Implement features from queue until done
 

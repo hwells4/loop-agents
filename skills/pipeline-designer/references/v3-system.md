@@ -96,7 +96,7 @@ When using `judgment` termination, the `decision` field is critical:
 - Write `decision: stop` when genuinely satisfied
 - Engine checks for N consecutive `stop` decisions (consensus)
 
-## Loop Configuration (loop.yaml)
+## Loop Configuration (stage.yaml)
 
 ```yaml
 name: stage-name
@@ -153,7 +153,7 @@ stages:
 scripts/
 ├── loops/
 │   └── {stage}/
-│       ├── loop.yaml               # Stage configuration
+│       ├── stage.yaml               # Stage configuration
 │       └── prompt.md               # Prompt template
 └── pipelines/
     └── {name}.yaml                 # Pipeline configuration

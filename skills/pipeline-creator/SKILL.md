@@ -1,6 +1,6 @@
 ---
 name: pipeline-creator
-description: Create pipeline files from architecture specs. Takes confirmed specs from pipeline-designer and produces working loop.yaml, prompt.md, and pipeline.yaml files.
+description: Create pipeline files from architecture specs. Takes confirmed specs from pipeline-designer and produces working stage.yaml, prompt.md, and pipeline.yaml files.
 ---
 
 ## What This Skill Does
@@ -76,7 +76,7 @@ Task(
 ```
 
 Produces:
-- `scripts/stages/{name}/loop.yaml`
+- `scripts/stages/{name}/stage.yaml`
 - `scripts/stages/{name}/prompt.md`
 
 ### pipeline-assembler
@@ -118,7 +118,7 @@ When complete, present:
 ## Pipeline Created
 
 **Files created:**
-- scripts/stages/{new-stage}/loop.yaml
+- scripts/stages/{new-stage}/stage.yaml
 - scripts/stages/{new-stage}/prompt.md
 - scripts/pipelines/{name}.yaml
 

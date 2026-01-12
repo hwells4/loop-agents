@@ -87,7 +87,7 @@ test_plateau_fixtures_have_required_fields() {
   # Plateau loops should have PLATEAU: and REASONING: in fixtures
   for loop_dir in "$STAGES_DIR"/*/; do
     local loop_name=$(basename "$loop_dir")
-    local config_file="$loop_dir/loop.yaml"
+    local config_file="$loop_dir/stage.yaml"
 
     if [ -f "$config_file" ]; then
       local completion=$(grep "^completion:" "$config_file" | cut -d: -f2 | tr -d ' ')

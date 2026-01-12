@@ -1,6 +1,6 @@
 ---
 name: pipeline-editor
-description: Edit existing stages and pipelines. Use when user wants to modify loop.yaml, prompt.md, or pipeline.yaml configurations.
+description: Edit existing stages and pipelines. Use when user wants to modify stage.yaml, prompt.md, or pipeline.yaml configurations.
 ---
 
 ## What This Skill Does
@@ -80,7 +80,7 @@ Before proposing changes, read the relevant files:
 
 ```bash
 # For a stage
-cat scripts/stages/{stage}/loop.yaml
+cat scripts/stages/{stage}/stage.yaml
 cat scripts/stages/{stage}/prompt.md
 
 # For a pipeline
@@ -98,7 +98,7 @@ Present a clear plan before editing:
 ```markdown
 ## Proposed Changes
 
-**Target:** `scripts/stages/elegance/loop.yaml`
+**Target:** `scripts/stages/elegance/stage.yaml`
 
 **Current:**
 ```yaml
@@ -133,7 +133,7 @@ If validation fails, fix the issue before presenting the result.
 
 ## Editable Properties
 
-### Stage (loop.yaml)
+### Stage (stage.yaml)
 
 | Property | Description |
 |----------|-------------|

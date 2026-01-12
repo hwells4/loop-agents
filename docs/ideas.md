@@ -138,11 +138,11 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 ---
 
 ### 5. Loop Scaffolding Command
-**Problem:** Creating a new stage type requires knowing the exact file structure, required fields in loop.yaml, and template variable syntax. New users copy-paste and make mistakes.
+**Problem:** Creating a new stage type requires knowing the exact file structure, required fields in stage.yaml, and template variable syntax. New users copy-paste and make mistakes.
 
 **Solution:** Add `./scripts/run.sh init loop {name}` command:
 - Creates `scripts/stages/{name}/` directory
-- Generates `loop.yaml` with all fields documented
+- Generates `stage.yaml` with all fields documented
 - Creates `prompt.md` with commented template showing available variables
 - Optionally copies from existing loop as starting point
 - Validates the result with the loop linter
@@ -157,7 +157,7 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 **Problem:** A single Claude iteration can hang indefinitely—network stall, infinite thinking loop, or API issue. There's no way to bound iteration time, so a stuck iteration blocks the entire session until manual intervention.
 
 **Solution:** Add timeout configuration at multiple levels:
-- `timeout: 300` in loop.yaml (default 5 minutes)
+- `timeout: 300` in stage.yaml (default 5 minutes)
 - `--timeout 600` CLI override for specific runs
 - Wrap Claude execution with `timeout` command
 - On timeout: log to state, retry once with same prompt, then skip iteration
@@ -192,7 +192,7 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 - `on_iteration_complete` - After each successful iteration
 - `on_session_complete` - When loop finishes (success or max reached)
 - `on_error` - When iteration fails
-Hooks defined in loop.yaml or `~/.config/agent-pipelines/hooks.sh`:
+Hooks defined in stage.yaml or `~/.config/agent-pipelines/hooks.sh`:
 ```yaml
 hooks:
   on_session_complete: "./scripts/notify-slack.sh ${SESSION}"

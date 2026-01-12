@@ -105,7 +105,7 @@ Point users to existing configurations:
 
 ```bash
 # Stage examples
-cat scripts/stages/work/loop.yaml
+cat scripts/stages/work/stage.yaml
 cat scripts/stages/elegance/prompt.md
 
 # Pipeline examples

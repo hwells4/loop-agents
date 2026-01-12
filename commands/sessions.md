@@ -1,10 +1,10 @@
 ---
-description: Manage autonomous loop agent sessions in tmux
+description: Manage autonomous pipeline sessions in tmux
 ---
 
 # /sessions
 
-Manage loop agent sessions: start, list, monitor, attach, kill, and cleanup. Sessions are autonomous pipelines running in tmux background.
+Manage pipeline sessions: start, list, monitor, attach, kill, and cleanup. Sessions are autonomous pipelines running in tmux background.
 
 ## Usage
 
@@ -28,7 +28,7 @@ Manage loop agent sessions: start, list, monitor, attach, kill, and cleanup. Ses
 
 **Check what's running:**
 ```bash
-tmux list-sessions 2>/dev/null | grep -E "^loop-"
+tmux list-sessions 2>/dev/null | grep -E "^pipeline-"
 ```
 
 **Peek at output:**

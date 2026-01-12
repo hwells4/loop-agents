@@ -13,7 +13,7 @@
 #   ${ITERATION}                  - Current iteration (1-based)
 #   ${INDEX}                      - Current run index (0-based)
 #   ${PERSPECTIVE}                - Current perspective (for fan-out)
-#   ${OUTPUT_PATH}                - Path for tracked output (if configured in loop.yaml)
+#   ${OUTPUT_PATH}                - Path for tracked output (if configured in stage.yaml)
 #   ${PROGRESS_FILE}              - Alias for ${PROGRESS}
 #   ${INPUTS.stage-name}          - Outputs from a previous stage
 #   ${INPUTS}                     - Shorthand for previous stage outputs

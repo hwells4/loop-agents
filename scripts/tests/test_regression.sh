@@ -13,13 +13,13 @@ LOOPS_DIR="$SCRIPT_DIR/loops"
 #-------------------------------------------------------------------------------
 
 test_work_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/work/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/work/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   assert_eq "queue" "$term_type" "work stage uses termination.type=queue"
 }
 
 test_improve_plan_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/improve-plan/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/improve-plan/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   local consensus=$(echo "$config" | jq -r '.termination.consensus // empty')
   assert_eq "judgment" "$term_type" "improve-plan uses termination.type=judgment"
@@ -27,7 +27,7 @@ test_improve_plan_stage_v3_schema() {
 }
 
 test_elegance_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/elegance/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/elegance/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   local consensus=$(echo "$config" | jq -r '.termination.consensus // empty')
   assert_eq "judgment" "$term_type" "elegance uses termination.type=judgment"
@@ -35,13 +35,13 @@ test_elegance_stage_v3_schema() {
 }
 
 test_idea_wizard_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/idea-wizard/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/idea-wizard/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   assert_eq "fixed" "$term_type" "idea-wizard uses termination.type=fixed"
 }
 
 test_refine_beads_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/refine-beads/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/refine-beads/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   local consensus=$(echo "$config" | jq -r '.termination.consensus // empty')
   assert_eq "judgment" "$term_type" "refine-beads uses termination.type=judgment"
@@ -52,11 +52,11 @@ test_refine_beads_stage_v3_schema() {
 # Prompt Variable Tests (v3 variables)
 #-------------------------------------------------------------------------------
 
-# Helper: get actual prompt file path from loop.yaml
+# Helper: get actual prompt file path from stage.yaml
 # Handles both default prompt.md and custom prompt paths
 get_prompt_path() {
   local loop_dir=$1
-  local config_file="$loop_dir/loop.yaml"
+  local config_file="$loop_dir/stage.yaml"
 
   if [ ! -f "$config_file" ]; then
     echo ""
@@ -120,7 +120,7 @@ test_prompts_use_status_variable() {
 
 test_no_deprecated_output_parse() {
   for loop_dir in "$LOOPS_DIR"/*/; do
-    local config_file="$loop_dir/loop.yaml"
+    local config_file="$loop_dir/stage.yaml"
     [ -f "$config_file" ] || continue
     local loop_name=$(basename "$loop_dir")
     local content=$(cat "$config_file")
@@ -130,7 +130,7 @@ test_no_deprecated_output_parse() {
 
 test_no_deprecated_completion_field() {
   for loop_dir in "$LOOPS_DIR"/*/; do
-    local config_file="$loop_dir/loop.yaml"
+    local config_file="$loop_dir/stage.yaml"
     [ -f "$config_file" ] || continue
     local loop_name=$(basename "$loop_dir")
     local config=$(yaml_to_json "$config_file")

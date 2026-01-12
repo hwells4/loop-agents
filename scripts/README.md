@@ -179,7 +179,7 @@ Lock files (`.claude/locks/{session}.lock`):
 
 Each loop has two files:
 
-`scripts/stages/<name>/loop.yaml` - when to stop:
+`scripts/stages/<name>/stage.yaml` - when to stop:
 ```yaml
 name: my-loop
 description: What this loop does

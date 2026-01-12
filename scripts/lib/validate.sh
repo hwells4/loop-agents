@@ -59,10 +59,10 @@ validate_loop() {
     return 1
   fi
 
-  # L002: loop.yaml exists
-  local config_file="$dir/loop.yaml"
+  # L002: stage.yaml exists
+  local config_file="$dir/stage.yaml"
   if [ ! -f "$config_file" ]; then
-    errors+=("Missing loop.yaml")
+    errors+=("Missing stage.yaml")
     [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
     return 1
   fi
@@ -71,7 +71,7 @@ validate_loop() {
   local config
   config=$(yaml_to_json "$config_file" 2>&1)
   if [ $? -ne 0 ] || [ -z "$config" ] || [ "$config" = "{}" ]; then
-    errors+=("Invalid YAML syntax in loop.yaml")
+    errors+=("Invalid YAML syntax in stage.yaml")
     [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
     return 1
   fi
@@ -79,7 +79,7 @@ validate_loop() {
   # L004: name field present
   local loop_name=$(json_get "$config" ".name" "")
   if [ -z "$loop_name" ]; then
-    errors+=("Missing 'name' field in loop.yaml")
+    errors+=("Missing 'name' field in stage.yaml")
   fi
 
   # L005: name matches directory (warning)
@@ -92,7 +92,7 @@ validate_loop() {
   local completion=$(json_get "$config" ".completion" "")
 
   if [ -z "$term_type" ] && [ -z "$completion" ]; then
-    errors+=("Missing 'termination.type' field in loop.yaml (v3 schema)")
+    errors+=("Missing 'termination.type' field in stage.yaml (v3 schema)")
   fi
 
   # L007: termination type maps to completion strategy
@@ -443,7 +443,7 @@ dry_run_loop() {
   echo ""
 
   # Load config
-  local config=$(yaml_to_json "$dir/loop.yaml")
+  local config=$(yaml_to_json "$dir/stage.yaml")
   local description=$(json_get "$config" ".description" "")
   local delay=$(json_get "$config" ".delay" "3")
   local prompt_file=$(json_get "$config" ".prompt" "prompt.md")
@@ -573,7 +573,7 @@ dry_run_pipeline() {
       echo "- **Max iterations:** $stage_runs"
 
       # Get loop's termination strategy (v3)
-      local loop_config=$(yaml_to_json "${VALIDATE_SCRIPT_DIR}/../stages/$stage_loop/loop.yaml" 2>/dev/null)
+      local loop_config=$(yaml_to_json "${VALIDATE_SCRIPT_DIR}/../stages/$stage_loop/stage.yaml" 2>/dev/null)
       local term_type=$(json_get "$loop_config" ".termination.type" "")
       if [ -n "$term_type" ]; then
         echo "- **Termination:** $term_type"

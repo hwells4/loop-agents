@@ -37,7 +37,7 @@ show_help() {
   for dir in "$SCRIPT_DIR"/stages/*/; do
     [ -d "$dir" ] || continue
     name=$(basename "$dir")
-    desc=$(grep "^description:" "$dir/loop.yaml" 2>/dev/null | cut -d: -f2- | sed 's/^[[:space:]]*//')
+    desc=$(grep "^description:" "$dir/stage.yaml" 2>/dev/null | cut -d: -f2- | sed 's/^[[:space:]]*//')
     echo "  $name - $desc"
   done
   echo ""

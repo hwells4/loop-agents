@@ -20,7 +20,7 @@ ls scripts/stages/
 ls scripts/pipelines/*.yaml
 
 # Read a stage's config
-cat scripts/stages/{stage}/loop.yaml
+cat scripts/stages/{stage}/stage.yaml
 cat scripts/stages/{stage}/prompt.md
 
 # Read a pipeline's config
@@ -47,7 +47,7 @@ Example flow:
 ```
 User: "Make elegance use opus"
 
-You: [Read loop.yaml]
+You: [Read stage.yaml]
      Currently elegance uses sonnet. I'll change it to opus:
 
      model: sonnet → model: opus
@@ -74,7 +74,7 @@ Example:
 ```
 User: "What termination does work use?"
 
-You: [Read loop.yaml]
+You: [Read stage.yaml]
      Work uses queue termination - it checks `bd ready` and stops
      when the bead queue is empty. There's no consensus requirement;
      it just runs until there's no more work.

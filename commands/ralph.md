@@ -12,7 +12,7 @@ A basic [Ralph loop](https://ghuntley.com/ralph/) implementation. Spawns a fresh
 
 ```
 /ralph                # Start loop (auto-detects session)
-/ralph auth           # Work on beads labeled loop/auth
+/ralph auth           # Work on beads labeled pipeline/auth
 /ralph status         # Check running loops
 /ralph attach NAME    # Watch live (Ctrl+b d to detach)
 /ralph kill NAME      # Stop a loop

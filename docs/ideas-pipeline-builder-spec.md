@@ -449,7 +449,7 @@ Implementation:
 
 **Solution:** Add parameterized stages that accept configuration at invocation time:
 ```yaml
-# scripts/stages/code-review/loop.yaml
+# scripts/stages/code-review/stage.yaml
 name: code-review
 description: General code review with configurable focus
 parameters:
@@ -860,7 +860,7 @@ Modifications needed:
 
 **Solution:** Add optional reflection prompts at stage boundaries:
 ```yaml
-# In loop.yaml
+# In stage.yaml
 reflection:
   enabled: true
   trigger: on_stage_complete  # or: every_n_iterations: 3

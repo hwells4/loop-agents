@@ -119,7 +119,7 @@ For each phase:
 | `scripts/lib/completions/fixed-n.sh` | 19 | Minor: integrate with new status format |
 | `scripts/lib/progress.sh` | 58 | No changes (kept as-is) |
 | `scripts/lib/parse.sh` | 43 | Deprecate in favor of status.json reading |
-| `scripts/stages/*/loop.yaml` | 5 files | Update schema (new termination block) |
+| `scripts/stages/*/stage.yaml` | 5 files | Update schema (new termination block) |
 | `scripts/stages/*/prompt.md` | 4 files | Update to use `${CTX}` and write status.json |
 | `scripts/pipelines/*.yaml` | 3 files | Add `inputs` configuration |
 
@@ -925,7 +925,7 @@ fi
 #### 3.2 Remove `output.mode` from Schema
 
 **Files to update:**
-- `scripts/stages/*/loop.yaml` - Remove any `output:` blocks with `mode:`
+- `scripts/stages/*/stage.yaml` - Remove any `output:` blocks with `mode:`
 - `scripts/engine.sh` - Remove mode-based output handling
 
 **New simplified schema:**
@@ -1431,7 +1431,7 @@ mark_failed() {
 
 **Completed 2026-01-11:**
 - Created `scripts/tests/test_regression.sh` with 27 tests for v3 schema validation
-- Updated all 5 loop.yaml files to use v3 `termination` block:
+- Updated all 5 stage.yaml files to use v3 `termination` block:
   - work: `termination.type: queue`
   - improve-plan, elegance, refine-beads: `termination.type: judgment`, `consensus: 2`
   - idea-wizard: `termination.type: fixed`
@@ -1474,13 +1474,13 @@ source "$SCRIPT_DIR/lib/test.sh"
 #-------------------------------------------------------------------------------
 
 test_work_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/work/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/work/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   assert_eq "queue" "$term_type" "work stage uses termination.type=queue"
 }
 
 test_improve_plan_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/improve-plan/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/improve-plan/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   local consensus=$(echo "$config" | jq -r '.termination.consensus // empty')
   assert_eq "judgment" "$term_type" "improve-plan uses termination.type=judgment"
@@ -1488,19 +1488,19 @@ test_improve_plan_stage_v3_schema() {
 }
 
 test_elegance_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/elegance/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/elegance/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   assert_eq "judgment" "$term_type" "elegance uses termination.type=judgment"
 }
 
 test_idea_wizard_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/idea-wizard/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/idea-wizard/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   assert_eq "fixed" "$term_type" "idea-wizard uses termination.type=fixed"
 }
 
 test_refine_beads_stage_v3_schema() {
-  local config=$(yaml_to_json "$LOOPS_DIR/refine-beads/loop.yaml")
+  local config=$(yaml_to_json "$LOOPS_DIR/refine-beads/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   assert_eq "judgment" "$term_type" "refine-beads uses termination.type=judgment"
 }
@@ -1531,7 +1531,7 @@ test_prompts_use_status_variable() {
 
 test_no_deprecated_output_parse() {
   for loop_dir in "$LOOPS_DIR"/*/; do
-    local config_file="$loop_dir/loop.yaml"
+    local config_file="$loop_dir/stage.yaml"
     [ -f "$config_file" ] || continue
     local loop_name=$(basename "$loop_dir")
     local content=$(cat "$config_file")
@@ -1933,7 +1933,7 @@ Phase 6: Cleanup & Migration
 - `scripts/lib/state.sh` - Enhanced failure state
 - `scripts/lib/completions/beads-empty.sh` - Status integration
 - `scripts/lib/completions/fixed-n.sh` - Status integration
-- All `scripts/stages/*/loop.yaml` - New schema
+- All `scripts/stages/*/stage.yaml` - New schema
 - All `scripts/stages/*/prompt.md` - New variables, status output
 - All `scripts/pipelines/*.yaml` - Input selection
 

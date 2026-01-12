@@ -1,6 +1,6 @@
 #!/bin/bash
 # Tests for engine config loading - verify YAML → environment variable flow
-# This ensures the engine correctly reads v3 termination config from loop.yaml
+# This ensures the engine correctly reads v3 termination config from stage.yaml
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SCRIPT_DIR/lib/test.sh"
@@ -14,7 +14,7 @@ source "$SCRIPT_DIR/lib/yaml.sh"
 # This extracts config values the same way engine.sh does
 _parse_loop_config() {
   local stage_dir=$1
-  local config_file="$stage_dir/loop.yaml"
+  local config_file="$stage_dir/stage.yaml"
 
   if [ ! -f "$config_file" ]; then
     return 1
@@ -73,7 +73,7 @@ test_improve_plan_loads_consensus() {
   _parse_loop_config "$SCRIPT_DIR/stages/improve-plan"
 
   # Check the actual config value (should be 2 for improve-plan)
-  local config=$(yaml_to_json "$SCRIPT_DIR/stages/improve-plan/loop.yaml")
+  local config=$(yaml_to_json "$SCRIPT_DIR/stages/improve-plan/stage.yaml")
   local consensus=$(json_get "$config" ".termination.consensus" "")
 
   assert_eq "2" "$consensus" "improve-plan has consensus=2 in config"
@@ -83,7 +83,7 @@ test_improve_plan_loads_consensus() {
 test_improve_plan_loads_min_iterations() {
   _parse_loop_config "$SCRIPT_DIR/stages/improve-plan"
 
-  local config=$(yaml_to_json "$SCRIPT_DIR/stages/improve-plan/loop.yaml")
+  local config=$(yaml_to_json "$SCRIPT_DIR/stages/improve-plan/stage.yaml")
   local min_iter=$(json_get "$config" ".termination.min_iterations" "")
 
   assert_eq "2" "$min_iter" "improve-plan has min_iterations=2 in config"
@@ -104,7 +104,7 @@ test_elegance_loads_judgment_termination() {
 test_elegance_loads_consensus() {
   _parse_loop_config "$SCRIPT_DIR/stages/elegance"
 
-  local config=$(yaml_to_json "$SCRIPT_DIR/stages/elegance/loop.yaml")
+  local config=$(yaml_to_json "$SCRIPT_DIR/stages/elegance/stage.yaml")
   local consensus=$(json_get "$config" ".termination.consensus" "")
 
   # elegance should have consensus configured

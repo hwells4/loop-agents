@@ -209,7 +209,7 @@ Available pipelines: `quick-refine.yaml` (3+3), `full-refine.yaml` (5+5), `deep-
 Stages are single-stage pipeline definitions. Create one to add a new pipeline type.
 
 1. Create directory: `scripts/stages/{name}/`
-2. Add `loop.yaml`:
+2. Add `stage.yaml`:
 ```yaml
 name: my-stage
 description: What this stage does

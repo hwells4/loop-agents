@@ -27,8 +27,8 @@ _create_test_loop() {
 
   mkdir -p "$test_dir/stages/$loop_name"
 
-  # Create minimal loop.yaml
-  cat > "$test_dir/stages/$loop_name/loop.yaml" << EOF
+  # Create minimal stage.yaml
+  cat > "$test_dir/stages/$loop_name/stage.yaml" << EOF
 name: $loop_name
 description: Test loop for integration testing
 termination:

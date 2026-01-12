@@ -56,7 +56,7 @@ test_loops_have_required_files() {
     [ -d "$loop_dir" ] || continue
     local loop_name=$(basename "$loop_dir")
 
-    assert_file_exists "$loop_dir/loop.yaml" "$loop_name has loop.yaml"
+    assert_file_exists "$loop_dir/stage.yaml" "$loop_name has stage.yaml"
 
     # Check for prompt file (either prompt.md or in prompts/)
     if [ -f "$loop_dir/prompt.md" ]; then

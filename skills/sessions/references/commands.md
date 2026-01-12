@@ -55,7 +55,7 @@ cat scripts/pipelines/full-refine.yaml
 
 **View stage configuration:**
 ```bash
-cat scripts/stages/work/loop.yaml
+cat scripts/stages/work/stage.yaml
 ```
 </discovery_commands>
 
