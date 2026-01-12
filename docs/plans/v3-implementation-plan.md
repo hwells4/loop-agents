@@ -180,9 +180,16 @@ scripts/loops/improve-plan/fixtures/
 
 ---
 
-### Phase 1: Context Manifest (`context.json`)
+### Phase 1: Context Manifest (`context.json`) ✅ COMPLETE
 
 **Goal:** Replace 9+ template variables with a single structured JSON file.
+
+**Completed 2025-01-11:**
+- Created `scripts/lib/context.sh` with `generate_context()`, `build_inputs_json()`, `calculate_remaining_time()`
+- Updated `scripts/lib/resolve.sh` to support v3 variables (`${CTX}`, `${STATUS}`) while maintaining backward compatibility
+- Updated `scripts/engine.sh` to generate context.json before each iteration
+- Added 25 tests in `scripts/tests/test_context.sh` validating context generation and resolution
+- Verified: `./scripts/run.sh test context` passes, all 115 tests pass
 
 #### 1.1 Create Context Generator
 
@@ -326,10 +333,10 @@ local resolved_prompt=$(resolve_prompt "$LOOP_PROMPT" "$context_file")
 
 #### Success Criteria - Phase 1
 
-- [ ] `context.json` is generated in `iterations/NNN/` before each iteration
-- [ ] Prompts can use `${CTX}` to read the context file
-- [ ] Old variables (`${SESSION}`, `${ITERATION}`, etc.) still work (deprecated)
-- [ ] Test: Run `./scripts/run.sh work test-session 3` and verify `context.json` files exist
+- [x] `context.json` is generated in `iterations/NNN/` before each iteration
+- [x] Prompts can use `${CTX}` to read the context file
+- [x] Old variables (`${SESSION}`, `${ITERATION}`, etc.) still work (deprecated)
+- [x] Test: Run `./scripts/run.sh test context` and verify all tests pass
 
 ---
 

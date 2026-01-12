@@ -2,23 +2,81 @@
 # Unified Variable Resolution
 # Resolves all variables in prompt templates for both loops and pipelines
 #
-# Variables:
+# v3 Variables (preferred):
+#   ${CTX}                        - Path to context.json (full context)
+#   ${STATUS}                     - Path to write status.json
+#   ${PROGRESS}                   - Path to progress file
+#   ${OUTPUT}                     - Path to write output
+#
+# v2 Variables (deprecated, still supported):
 #   ${SESSION} / ${SESSION_NAME}  - Session name
 #   ${ITERATION}                  - Current iteration (1-based)
 #   ${INDEX}                      - Current run index (0-based)
 #   ${PERSPECTIVE}                - Current perspective (for fan-out)
-#   ${OUTPUT}                     - Path to write output (internal, gitignored)
 #   ${OUTPUT_PATH}                - Path for tracked output (if configured in loop.yaml)
-#   ${PROGRESS} / ${PROGRESS_FILE} - Path to progress file
+#   ${PROGRESS_FILE}              - Alias for ${PROGRESS}
 #   ${INPUTS.stage-name}          - Outputs from a previous stage
 #   ${INPUTS}                     - Shorthand for previous stage outputs
 
-# Resolve all variables in a prompt template
+# Resolve prompt using context file (v3 mode)
+# Usage: resolve_prompt_v3 "$template" "$context_file"
+resolve_prompt_v3() {
+  local template=$1
+  local context_file=$2
+
+  local resolved="$template"
+
+  # Read context
+  local ctx_json=$(cat "$context_file" 2>/dev/null || echo "{}")
+
+  # Resolve v3 convenience paths
+  local ctx_progress=$(echo "$ctx_json" | jq -r '.paths.progress // ""')
+  local ctx_output=$(echo "$ctx_json" | jq -r '.paths.output // ""')
+  local ctx_status=$(echo "$ctx_json" | jq -r '.paths.status // ""')
+
+  resolved="${resolved//\$\{CTX\}/$context_file}"
+  resolved="${resolved//\$\{STATUS\}/$ctx_status}"
+  resolved="${resolved//\$\{PROGRESS\}/$ctx_progress}"
+  resolved="${resolved//\$\{OUTPUT\}/$ctx_output}"
+
+  # DEPRECATED: Keep old variables working during migration
+  local ctx_session=$(echo "$ctx_json" | jq -r '.session // ""')
+  local ctx_iteration=$(echo "$ctx_json" | jq -r '.iteration // ""')
+  resolved="${resolved//\$\{SESSION\}/$ctx_session}"
+  resolved="${resolved//\$\{SESSION_NAME\}/$ctx_session}"
+  resolved="${resolved//\$\{ITERATION\}/$ctx_iteration}"
+  resolved="${resolved//\$\{PROGRESS_FILE\}/$ctx_progress}"
+
+  # Handle ${INPUTS.stage-name} via context inputs
+  local run_dir=$(echo "$ctx_json" | jq -r '.paths.session_dir // ""')
+  while [[ "$resolved" =~ \$\{INPUTS\.([a-zA-Z0-9_-]+)\} ]]; do
+    local ref_stage_name="${BASH_REMATCH[1]}"
+    local inputs_content=$(resolve_stage_inputs "$run_dir" "$ref_stage_name")
+    resolved="${resolved//\$\{INPUTS.$ref_stage_name\}/$inputs_content}"
+  done
+
+  # Handle ${INPUTS} (previous stage shorthand)
+  if [[ "$resolved" == *'${INPUTS}'* ]] && [ -n "$run_dir" ]; then
+    local stage_idx=$(echo "$ctx_json" | jq -r '.stage.index // 0')
+    local prev_inputs=$(resolve_previous_stage_inputs "$run_dir" "$stage_idx")
+    resolved="${resolved//\$\{INPUTS\}/$prev_inputs}"
+  fi
+
+  echo "$resolved"
+}
+
+# Resolve all variables in a prompt template (v2 compatibility mode)
 # Usage: resolve_prompt "$template" "$vars_json"
 # vars_json: {"session": "x", "iteration": 1, "progress_file": "/path", ...}
 resolve_prompt() {
   local template=$1
   local vars_json=$2
+
+  # Check if second arg is a context file path (v3 mode)
+  if [ -f "$vars_json" ] && [[ "$vars_json" == *.json ]]; then
+    resolve_prompt_v3 "$template" "$vars_json"
+    return
+  fi
 
   local resolved="$template"
 
@@ -32,6 +90,16 @@ resolve_prompt() {
   local progress_file=$(echo "$vars_json" | jq -r '.progress // empty')
   local run_dir=$(echo "$vars_json" | jq -r '.run_dir // empty')
   local stage_idx=$(echo "$vars_json" | jq -r '.stage_idx // "0"')
+  local context_file=$(echo "$vars_json" | jq -r '.context_file // empty')
+  local status_file=$(echo "$vars_json" | jq -r '.status_file // empty')
+
+  # v3 variables (if context_file provided)
+  if [ -n "$context_file" ]; then
+    resolved="${resolved//\$\{CTX\}/$context_file}"
+  fi
+  if [ -n "$status_file" ]; then
+    resolved="${resolved//\$\{STATUS\}/$status_file}"
+  fi
 
   # Standard substitutions (bash parameter expansion for multi-line safety)
   resolved="${resolved//\$\{SESSION\}/$session}"

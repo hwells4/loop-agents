@@ -41,6 +41,7 @@ source "$LIB_DIR/state.sh"
 source "$LIB_DIR/progress.sh"
 source "$LIB_DIR/resolve.sh"
 source "$LIB_DIR/parse.sh"
+source "$LIB_DIR/context.sh"
 source "$LIB_DIR/notify.sh"
 source "$LIB_DIR/lock.sh"
 
@@ -202,7 +203,19 @@ run_stage() {
       [ -n "$output_dir" ] && [ "$output_dir" != "." ] && mkdir -p "$output_dir"
     fi
 
-    # Build variables for prompt resolution
+    # Build stage config JSON for context generation
+    local stage_config_json=$(jq -n \
+      --arg id "$stage_type" \
+      --arg name "$stage_type" \
+      --argjson index "$stage_idx" \
+      --arg loop "$stage_type" \
+      --argjson max_iterations "$max_iterations" \
+      '{id: $id, name: $name, index: $index, loop: $loop, max_iterations: $max_iterations}')
+
+    # Generate context.json for this iteration (v3)
+    local context_file=$(generate_context "$session" "$i" "$stage_config_json" "$run_dir")
+
+    # Build variables for prompt resolution (includes v3 context file)
     local vars_json=$(jq -n \
       --arg session "$session" \
       --arg iteration "$i" \
@@ -211,7 +224,9 @@ run_stage() {
       --arg output_path "$resolved_output_path" \
       --arg run_dir "$run_dir" \
       --arg stage_idx "$stage_idx" \
-      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx}')
+      --arg context_file "$context_file" \
+      --arg status_file "$(dirname "$context_file")/status.json" \
+      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file}')
 
     # Resolve prompt
     local resolved_prompt=$(resolve_prompt "$LOOP_PROMPT" "$vars_json")
