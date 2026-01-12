@@ -6,7 +6,7 @@ description: Analyze codebase and update README to reflect current functionality
 
 termination:
   type: fixed
-  iterations: 3
+  iterations: 1
 
 delay: 1
 output_path: docs/readme-updates-${SESSION}.md

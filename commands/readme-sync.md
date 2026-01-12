@@ -11,8 +11,8 @@ Analyzes the codebase and updates README.md to reflect current functionality. Fi
 ## Usage
 
 ```
-/readme-sync         # 3 iterations (default)
-/readme-sync 2       # 2 iterations (quick pass)
+/readme-sync         # 1 iteration (default)
+/readme-sync 2       # 2 iterations (deeper pass)
 ```
 
 ## What It Does
@@ -25,4 +25,4 @@ Each iteration:
 
 ## Termination
 
-**Fixed iterations** - runs exactly N times (default: 3). Each iteration covers different areas.
+**Fixed iterations** - runs exactly N times (default: 1).
