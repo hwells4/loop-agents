@@ -172,12 +172,14 @@ can_resume() {
   esac
 }
 
-# Reset state for resume (clears failure status, keeps history)
+# Reset state for resume (clears failure status, keeps history, adds resumed_at)
 # Usage: reset_for_resume "$state_file"
 reset_for_resume() {
   local state_file=$1
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
 
-  jq '.status = "running" | del(.failed_at) | del(.error)' \
+  jq --arg ts "$timestamp" \
+     '.status = "running" | .resumed_at = $ts | del(.failed_at) | del(.error) | .iteration_started = null' \
     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
 }
 

@@ -161,3 +161,5 @@ run_test "Remaining time with limit" test_remaining_time_with_limit
 run_test "Resolve v3 variables" test_resolve_v3_variables
 run_test "Resolve auto-detects context file" test_resolve_auto_detects_context_file
 run_test "Resolve legacy JSON still works" test_resolve_legacy_json_still_works
+
+test_summary

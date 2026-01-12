@@ -195,25 +195,8 @@ show_crash_recovery_info() {
   echo ""
 }
 
-# Get resume iteration from state file
-# Usage: get_resume_iteration "$state_file"
-# Returns: iteration number to resume from
-get_resume_iteration() {
-  local state_file=$1
-  local completed=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
-  echo $((completed + 1))
-}
-
-# Reset state file for resume
-# Usage: reset_for_resume "$state_file"
-reset_for_resume() {
-  local state_file=$1
-  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
-
-  jq --arg ts "$timestamp" \
-     '.status = "running" | .resumed_at = $ts | .iteration_started = null' \
-     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
-}
+# NOTE: get_resume_iteration() and reset_for_resume() are defined in state.sh
+# to avoid duplication. Source state.sh before using these functions.
 
 # Show resume information
 # Usage: show_resume_info "$session" "$start_iteration" "$max_iterations"

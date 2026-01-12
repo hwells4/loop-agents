@@ -160,9 +160,10 @@ test_beads_empty_accepts_status_file_param() {
 
   # Function should accept 3 parameters without error
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
-  # Just checking it doesn't crash with 3 params
+  local result=$?
 
-  assert_true "true" "beads-empty accepts status_file parameter"
+  # Verify function ran without crashing (exit code 0 or 1, not crash)
+  assert_true "$([ $result -le 1 ] && echo true || echo false)" "beads-empty accepts status_file parameter without crashing"
 
   rm -rf "$test_dir"
 }

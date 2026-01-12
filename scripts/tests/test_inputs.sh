@@ -297,3 +297,5 @@ test_inputs_config_defaults() {
 
 run_test "Inputs config parsing" test_inputs_config_parsing
 run_test "Inputs config defaults" test_inputs_config_defaults
+
+test_summary
