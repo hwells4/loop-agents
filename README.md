@@ -1,16 +1,18 @@
 # Agent Pipelines
 
-A [Ralph loop](https://ghuntley.com/ralph/) orchestrator for Claude Code.
+A Claude Code plugin for creating and running [Ralph loop](https://ghuntley.com/ralph/) pipelines. Spawn background loops that work autonomously until the job is done.
 
-Describe what you want to build, and Claude handles the rest: planning, task breakdown, and running loops in the background. You can attach to watch progress, spin up multiple loops at once, or chain them into pipelines.
+Describe what you want to build, and Claude handles the rest: planning, task breakdown, and running loops in the background. You can attach to watch progress, spin up multiple loops at once, or chain them into multi-stage pipelines.
 
 **What you get:**
 - Loops run in tmux, not your terminal. Attach, detach, let them run overnight.
 - Multiple loops at once for parallel features.
 - Planning workflow: PRD → tasks → implementation loop.
-- Pipelines to chain loops together.
+- Multi-stage pipelines to chain loops together.
 - Crash recovery with automatic resume.
 - Session locking prevents duplicate runs.
+- Built-in validation, linting, and dry-run preview.
+- Mock execution mode for testing without API calls.
 
 **Core philosophy:** Fresh agent per iteration prevents context degradation. Two-agent consensus prevents premature stopping. Planning tokens are cheaper than implementation tokens.
 
@@ -671,6 +673,292 @@ Loops export these for hooks and prompts:
 | `CLAUDE_PIPELINE_AGENT` | Always `1` when inside a loop |
 | `CLAUDE_PIPELINE_SESSION` | Current session name |
 | `CLAUDE_PIPELINE_TYPE` | Current stage type |
+
+## Validation & Linting
+
+Before running a pipeline, validate your configuration:
+
+```bash
+# Lint all stages and pipelines
+./scripts/run.sh lint
+
+# Lint a specific stage
+./scripts/run.sh lint loop work
+
+# Lint a specific pipeline
+./scripts/run.sh lint pipeline full-refine
+```
+
+The validator checks for common mistakes:
+
+**Stage validation (L-codes):**
+| Code | Check |
+|------|-------|
+| L001 | Stage directory exists |
+| L002 | stage.yaml present |
+| L003 | Valid YAML syntax |
+| L004 | name field present |
+| L005 | name matches directory (warning) |
+| L006 | termination.type present |
+| L007 | termination type maps to valid strategy |
+| L008 | prompt.md exists |
+| L009 | judgment loops have consensus config |
+| L010 | min_iterations >= 2 for judgment (warning) |
+| L011 | template variables are known |
+
+**Pipeline validation (P-codes):**
+| Code | Check |
+|------|-------|
+| P001 | Pipeline file exists |
+| P002 | Valid YAML syntax |
+| P003 | name field present |
+| P004 | stages array present and non-empty |
+| P005 | Each stage has name |
+| P006 | Stage names are unique |
+| P007 | Each stage has `stage` or `prompt` |
+| P008 | Referenced stages exist |
+| P009 | INPUTS references point to valid stages |
+| P010 | First stage doesn't use INPUTS (warning) |
+| P011 | Each stage has runs field (warning) |
+
+### Dry Run Preview
+
+Preview what a pipeline will do without executing:
+
+```bash
+# Preview a stage
+./scripts/run.sh dry-run loop work my-session
+
+# Preview a pipeline
+./scripts/run.sh dry-run pipeline full-refine my-session
+```
+
+Dry run shows:
+- Validation results (pass/fail with all warnings)
+- Configuration values (termination strategy, delay, consensus)
+- File paths that will be created
+- Resolved prompt with template variables substituted
+- Termination conditions
+
+## Testing Framework
+
+Agent Pipelines includes a testing framework for development and CI:
+
+### Mock Execution Mode
+
+Test pipeline execution without calling the Claude API:
+
+```bash
+# Enable mock mode with fixtures
+MOCK_MODE=true ./scripts/run.sh work test-session 5
+```
+
+Mock mode:
+- Uses fixture files instead of Claude API
+- Supports iteration-specific responses (`iteration-1.txt`, `iteration-2.txt`)
+- Falls back to `default.txt` for missing iterations
+- Generates valid status.json automatically
+- Configurable simulated delay (`MOCK_DELAY=2`)
+
+### Fixture Structure
+
+Each stage can have fixtures for testing:
+
+```
+scripts/stages/work/
+├── stage.yaml
+├── prompt.md
+└── fixtures/
+    ├── default.txt           # Fallback response
+    ├── iteration-1.txt       # Response for iteration 1
+    ├── iteration-2.txt       # Response for iteration 2
+    ├── status.json           # Default status template
+    ├── status-1.json         # Status for iteration 1
+    └── status-2.json         # Status for iteration 2
+```
+
+### Creating Fixtures
+
+Generate fixture sets for different termination types:
+
+```bash
+# Plateau fixtures (for judgment stages)
+source scripts/lib/mock.sh
+create_fixture_set "improve-plan" "plateau"
+
+# Work fixtures (for queue stages)
+create_fixture_set "work" "beads-empty"
+```
+
+### Recording Mode
+
+Capture real Claude responses to create fixtures:
+
+```bash
+source scripts/lib/mock.sh
+enable_record_mode "work"
+# Run the pipeline normally
+# Responses saved to fixtures/recorded/{timestamp}/
+```
+
+### Test Assertions
+
+The test framework provides assertions for pipeline testing:
+
+```bash
+source scripts/lib/test.sh
+
+run_test "State file created" test_state_file
+test_state_file() {
+  assert_file_exists "$run_dir/state.json"
+  assert_json_field "$run_dir/state.json" ".status" "running"
+  assert_json_field_exists "$run_dir/state.json" ".history"
+}
+
+test_summary  # Prints results, returns exit code
+```
+
+Available assertions:
+- `assert_eq`, `assert_neq` - Value equality
+- `assert_file_exists`, `assert_file_not_exists`
+- `assert_dir_exists`
+- `assert_json_field`, `assert_json_field_exists`
+- `assert_contains`, `assert_not_contains`
+- `assert_exit_code`
+- `assert_true`, `assert_false`
+
+## Design Philosophy
+
+### Everything Is A Pipeline
+
+The unified engine treats all executions identically. A "loop" is just a single-stage pipeline. This simplifies the codebase and mental model:
+
+```
+Single-stage: ./scripts/run.sh work auth 25
+Multi-stage:  ./scripts/run.sh pipeline full-refine.yaml auth
+```
+
+Both create the same directory structure, state files, and lock management. The engine doesn't distinguish between them—it just runs stages sequentially.
+
+### The Abstraction Hierarchy
+
+```
+Pipeline (YAML config)
+  └── Stage (stage.yaml + prompt.md)
+        └── Iteration (single Claude call)
+              └── Status (status.json decision)
+```
+
+**Pipeline**: Configuration that chains stages together. Can be single-stage (loop) or multi-stage.
+
+**Stage**: A prompt template paired with a termination strategy. Defines what Claude does each iteration and when to stop.
+
+**Iteration**: One Claude invocation. Fresh agent reads progress file, does work, writes status.json.
+
+**Status**: Agent's decision about what happened (continue/stop/error) and what to do next.
+
+### Termination as a First-Class Concept
+
+Termination strategies are pluggable shell scripts in `scripts/lib/completions/`:
+
+```bash
+# beads-empty.sh - Queue termination
+# Returns 0 (done) if bd ready returns no results
+
+# plateau.sh - Judgment termination
+# Returns 0 (done) if N consecutive agents wrote decision: stop
+
+# fixed-n.sh - Fixed termination
+# Returns 0 (done) after N iterations OR if agent writes decision: stop
+```
+
+Each strategy receives the session context and iteration history. Adding a new strategy is as simple as creating a new shell script that returns 0 when done.
+
+### Progress Files as Compressed Context
+
+The progress file is the key to the Ralph loop pattern. It compresses hours of work into pages of context that fresh agents can read quickly.
+
+**What goes in:**
+- Codebase patterns discovered during work
+- Learnings from each iteration
+- Verify commands that should pass
+- Cross-cutting concerns
+
+**What stays out:**
+- Raw conversation history
+- Debugging dead-ends
+- Redundant information
+
+Each iteration appends a dated section. Fresh agents scan the file to understand prior work without token accumulation.
+
+### Consensus Over Single Judgment
+
+For subjective quality decisions (is the plan good enough?), requiring multiple agents to agree prevents:
+
+- Single-agent blind spots
+- Premature stopping on false confidence
+- Missing obvious improvements
+
+The backward scan algorithm counts consecutive "stop" decisions. If the count reaches the consensus threshold (default: 2), the loop terminates. Any "continue" resets the count.
+
+## Planning Workflow
+
+Agent Pipelines supports a structured planning-to-implementation flow:
+
+### 1. Create PRD
+
+Use `/agent-pipelines:create-prd` or `/sessions plan`:
+
+```
+You: "I want to add user authentication"
+```
+
+Claude conducts adaptive questioning to gather requirements:
+- What auth methods? (email/password, OAuth, magic link)
+- Session management approach?
+- Required security features?
+- Integration points?
+
+Output: `docs/plans/YYYY-MM-DD-{topic}-prd.md`
+
+### 2. Break Into Tasks
+
+Use `/agent-pipelines:create-tasks`:
+
+Claude reads the PRD and creates beads:
+- Discrete, implementable tasks
+- Dependency relationships
+- Labels for the session (`pipeline/{session}`)
+- Priority ordering
+
+### 3. Refine (Optional)
+
+Use `/refine` to polish before implementation:
+
+```bash
+/refine quick    # 3+3 iterations
+/refine full     # 5+5 iterations (default)
+/refine deep     # 8+8 iterations
+```
+
+First stage refines the plan document. Second stage refines the beads. Both use judgment termination—stops when quality plateaus.
+
+### 4. Implement
+
+Use `/work` to run the implementation loop:
+
+```bash
+/work auth 25    # Run work loop, max 25 iterations
+```
+
+Each iteration:
+1. Fresh Claude reads progress file
+2. Lists available beads
+3. Picks next logical task
+4. Implements, tests, commits
+5. Closes bead, updates progress
+
+Loop terminates when all beads are done.
 
 ## Limitations
 
