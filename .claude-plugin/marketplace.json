@@ -19,6 +19,20 @@
       },
       "category": "development",
       "homepage": "https://github.com/hwells4/agent-pipelines"
+    },
+    {
+      "name": "create-hooks",
+      "description": "Quickly scaffold Claude Code hooks with templates, validation, and conflict analysis",
+      "version": "1.0.0",
+      "author": {
+        "name": "Harrison Wells"
+      },
+      "source": {
+        "source": "url",
+        "url": "https://github.com/hwells4/create-hooks.git"
+      },
+      "category": "development",
+      "homepage": "https://github.com/hwells4/create-hooks"
     }
   ]
 }
