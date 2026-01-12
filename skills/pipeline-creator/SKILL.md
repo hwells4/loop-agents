@@ -71,7 +71,7 @@ Invoke for each new stage (parallel):
 Task(
   subagent_type="stage-creator",
   description="Create stage: {name}",
-  prompt="Create stage with specification:\n\nname: {name}\ndescription: {desc}\ntermination:\n  type: {type}\nmodel: {model}"
+  prompt="Create stage with specification:\n\nname: {name}\ndescription: {desc}\ntermination:\n  type: {type}\nprovider: {provider}\nmodel: {model}"
 )
 ```
 

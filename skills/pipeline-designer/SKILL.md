@@ -99,7 +99,8 @@ stages:
       min_iterations: N
       consensus: N
       max_iterations: N
-    model: opus | sonnet | haiku
+    provider: claude | codex
+    model: opus | sonnet | haiku | gpt-5.2-codex
     inputs: [stage-names]
 
 rationale: |

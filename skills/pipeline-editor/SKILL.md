@@ -141,7 +141,8 @@ If validation fails, fix the issue before presenting the result.
 | `termination.min_iterations` | Start checking after N (judgment) |
 | `termination.consensus` | Consecutive stops needed (judgment) |
 | `termination.max_iterations` | Hard limit (fixed) |
-| `model` | opus, sonnet, or haiku |
+| `provider` | claude or codex (default: claude) |
+| `model` | opus, sonnet, haiku (claude) or gpt-5.2-codex (codex) |
 | `delay` | Seconds between iterations |
 
 ### Stage (prompt.md)
