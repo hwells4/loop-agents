@@ -25,11 +25,13 @@ show_help() {
   echo "  pipeline <file> [session]       Run a multi-stage pipeline"
   echo "  lint [loop|pipeline] [name]     Validate configurations"
   echo "  dry-run <loop|pipeline> <name> [session]  Preview execution"
+  echo "  test [name] [--verbose]         Run tests (all or specific)"
   echo "  status <session>                Check session status"
   echo ""
   echo "Flags:"
   echo "  --force                         Override existing session lock"
   echo "  --resume                        Resume a crashed/failed session"
+  echo "  --verbose                       Show detailed test output"
   echo ""
   echo "Available loops:"
   for dir in "$SCRIPT_DIR"/loops/*/; do
@@ -80,6 +82,66 @@ case "$1" in
       echo "Error: Unknown target type '$target_type'. Use 'loop' or 'pipeline'."
       exit 1
     fi
+    exit $?
+    ;;
+
+  test)
+    shift
+    TESTS_DIR="$SCRIPT_DIR/tests"
+
+    # Parse flags
+    TEST_VERBOSE=false
+    TEST_TARGET=""
+    while [[ $# -gt 0 ]]; do
+      case $1 in
+        --verbose|-v) TEST_VERBOSE=true; shift ;;
+        --ci) TEST_CI=true; shift ;;
+        *) TEST_TARGET=$1; shift ;;
+      esac
+    done
+    export TEST_VERBOSE
+
+    # Check if tests directory exists
+    if [ ! -d "$TESTS_DIR" ]; then
+      echo "No tests directory found at: $TESTS_DIR"
+      exit 1
+    fi
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Loop Agents Test Suite"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    # Source test library
+    source "$LIB_DIR/test.sh"
+
+    # Run specific test or all tests
+    if [ -n "$TEST_TARGET" ]; then
+      # Run specific test file
+      test_file="$TESTS_DIR/test_${TEST_TARGET}.sh"
+      if [ -f "$test_file" ]; then
+        source "$test_file"
+      else
+        echo "Test file not found: $test_file"
+        echo "Available tests:"
+        ls "$TESTS_DIR"/test_*.sh 2>/dev/null | while read f; do
+          name=$(basename "$f" .sh | sed 's/^test_//')
+          echo "  $name"
+        done
+        exit 1
+      fi
+    else
+      # Run all tests
+      for test_file in "$TESTS_DIR"/test_*.sh; do
+        [ -f "$test_file" ] || continue
+        echo "Running: $(basename "$test_file")"
+        echo ""
+        source "$test_file"
+      done
+    fi
+
+    # Print summary
+    test_summary
     exit $?
     ;;
 

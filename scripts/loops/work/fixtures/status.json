@@ -1,0 +1,10 @@
+{
+  "decision": "continue",
+  "reason": "Completed one bead, more work available",
+  "summary": "Implemented mock feature from beads-mock-001, all tests passing",
+  "work": {
+    "items_completed": ["beads-mock-001"],
+    "files_touched": ["src/mock-feature.ts", "tests/mock-feature.test.ts"]
+  },
+  "errors": []
+}

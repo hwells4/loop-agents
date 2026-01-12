@@ -1,0 +1,10 @@
+{
+  "decision": "continue",
+  "reason": "Generating ideas (fixed-n completion)",
+  "summary": "Generated 3 actionable ideas: parallel execution, progress visualization, smart retry",
+  "work": {
+    "items_completed": [],
+    "files_touched": ["docs/ideas-test.md"]
+  },
+  "errors": []
+}

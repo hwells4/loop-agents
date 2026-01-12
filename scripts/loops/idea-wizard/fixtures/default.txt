@@ -1,0 +1,27 @@
+# Idea Generation - Mock Response
+
+## Creative Exploration
+Analyzed the codebase for improvement opportunities.
+
+## Ideas Generated
+
+### Idea 1: Parallel Execution Engine
+Add support for running multiple independent stages in parallel.
+- Impact: High (faster pipeline execution)
+- Effort: Medium
+- Dependencies: Refactor state management
+
+### Idea 2: Progress Visualization
+Add a real-time dashboard showing loop progress.
+- Impact: Medium (better developer experience)
+- Effort: Low
+- Dependencies: None
+
+### Idea 3: Smart Retry with Backoff
+Implement exponential backoff for transient failures.
+- Impact: Medium (improved reliability)
+- Effort: Low
+- Dependencies: None
+
+## Summary
+Generated 3 actionable ideas with varying impact levels.
