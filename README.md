@@ -101,7 +101,7 @@ Loops run independently. Attach to watch (`/sessions attach`), run multiple in p
 
 ## Built-in Stages
 
-**work** — Grinds through your task queue. Each iteration picks a task, implements it, commits, closes it. Stops when queue is empty. This is the main implementation loop.
+**work** — The classic Ralph loop. Grinds through your task queue: pick task, implement, commit, close, repeat. Stops when queue is empty. Fresh agent each iteration means no context degradation even on long runs.
 
 **improve-plan** — Reviews your PRD and makes it better. Runs until two agents in a row say "this is good enough." Use before breaking a plan into tasks.
 
