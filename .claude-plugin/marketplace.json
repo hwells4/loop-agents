@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "agent-pipelines",
-      "description": "Run Claude in loops until work is done. Each iteration gets a fresh agent to avoid context degradation. Two agents must agree before stopping.",
+      "description": "A Claude Code plugin to create and manage Agent Pipelines. Spawn background loops that work autonomously until the job is done.",
       "version": "1.0.0",
       "author": {
         "name": "Harrison Wells"

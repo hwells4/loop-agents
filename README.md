@@ -113,6 +113,20 @@ The loop runs **independently** of your Claude Code session. You can:
 - Spin up multiple loops for parallel work
 - Recover if Claude Code crashes—loops keep running in tmux
 
+### Why Fresh Agents?
+
+The core insight of the [Ralph loop pattern](https://ghuntley.com/ralph/) is that **fresh agents per iteration prevent context degradation**.
+
+Traditional approaches keep a single agent running across multiple tasks. As the context window fills with previous work, responses become less coherent and the agent loses sight of original goals. Token accumulation degrades quality.
+
+The Ralph loop inverts this:
+- Each iteration spawns a **completely fresh Claude instance**
+- The fresh agent reads a **progress file** with accumulated learnings
+- The progress file is curated: only essential context, not raw conversation history
+- Result: iteration 25 has the same quality as iteration 1
+
+This is why planning tokens are cheaper than implementation tokens. A well-structured progress file compresses hours of work into pages of context. Fresh agents read this compressed context and maintain full capability.
+
 ## Stage Types
 
 The system includes eight stage types, each designed for a different phase of work:
@@ -426,6 +440,39 @@ The engine reads this to determine:
 - What to record in state history
 - Whether an error occurred
 
+### Template Variables
+
+Prompts use variables that are resolved at runtime:
+
+| Variable | Description |
+|----------|-------------|
+| `${CTX}` | Path to `context.json` with full iteration context |
+| `${PROGRESS}` | Path to progress file |
+| `${STATUS}` | Path where agent writes `status.json` |
+| `${ITERATION}` | 1-based iteration number |
+| `${SESSION_NAME}` | Session name |
+| `${OUTPUT}` | Path to write output (multi-stage pipelines) |
+| `${INPUTS}` | Previous stage outputs (multi-stage pipelines) |
+| `${PERSPECTIVE}` | Current item from perspectives array (fan-out) |
+
+The `context.json` provides complete iteration context:
+
+```json
+{
+  "session": "auth",
+  "pipeline": "loop",
+  "stage": { "id": "work", "index": 0, "template": "work" },
+  "iteration": 3,
+  "paths": {
+    "session_dir": ".claude/pipeline-runs/auth",
+    "progress": ".claude/pipeline-runs/auth/progress-auth.md",
+    "status": ".claude/pipeline-runs/auth/.../iterations/003/status.json"
+  },
+  "inputs": { "from_stage": {}, "from_previous_iterations": [] },
+  "limits": { "max_iterations": 25, "remaining_seconds": -1 }
+}
+```
+
 ## State Management
 
 All sessions run in `.claude/pipeline-runs/{session}/` with unified state tracking:
@@ -581,6 +628,31 @@ Run with --resume to continue from iteration 5
 - Status returns to "running"
 - Error details cleared
 - Loop continues from `iteration_completed + 1`
+
+## Debugging
+
+```bash
+# Watch a running pipeline
+tmux attach -t pipeline-{session}
+
+# Check pipeline state
+cat .claude/pipeline-runs/{session}/state.json | jq
+
+# View progress file
+cat .claude/pipeline-runs/{session}/progress-{session}.md
+
+# Check remaining beads
+bd ready --label=pipeline/{session}
+
+# Check iteration status
+cat .claude/pipeline-runs/{session}/stage-*/iterations/*/status.json | jq
+
+# Kill a stuck pipeline
+tmux kill-session -t pipeline-{session}
+
+# Check session status (active, failed, completed)
+./scripts/run.sh status {session}
+```
 
 ## Notifications
 
