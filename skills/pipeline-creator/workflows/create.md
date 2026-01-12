@@ -42,7 +42,7 @@ Parse the stages and categorize:
 ## Stages to Create
 
 ### Already Exist (reuse)
-- {stage-name}: scripts/loops/{stage}/
+- {stage-name}: scripts/stages/{stage}/
 
 ### Need Creation
 - {stage-name}: New stage required
@@ -51,7 +51,7 @@ Parse the stages and categorize:
 Verify existing stages actually exist:
 ```bash
 for stage in {list-of-exists-true}; do
-  test -d "scripts/loops/$stage" && echo "OK: $stage" || echo "MISSING: $stage"
+  test -d "scripts/stages/$stage" && echo "OK: $stage" || echo "MISSING: $stage"
 done
 ```
 
@@ -108,8 +108,8 @@ All agents must complete successfully.
 
 For each completed agent, verify files exist:
 ```bash
-test -f scripts/loops/{stage}/loop.yaml && echo "OK" || echo "MISSING"
-test -f scripts/loops/{stage}/prompt.md && echo "OK" || echo "MISSING"
+test -f scripts/stages/{stage}/loop.yaml && echo "OK" || echo "MISSING"
+test -f scripts/stages/{stage}/prompt.md && echo "OK" || echo "MISSING"
 ```
 
 If any failed, report the error and stop.
@@ -191,8 +191,8 @@ Show the output to user:
 ## Stage Created
 
 **Files:**
-- `scripts/loops/{name}/loop.yaml`
-- `scripts/loops/{name}/prompt.md`
+- `scripts/stages/{name}/loop.yaml`
+- `scripts/stages/{name}/prompt.md`
 
 **Lint:** PASSED
 
@@ -213,8 +213,8 @@ Show the output to user:
 ## Pipeline Created
 
 **New Stages:**
-- `scripts/loops/{stage1}/` (loop.yaml, prompt.md)
-- `scripts/loops/{stage2}/` (loop.yaml, prompt.md)
+- `scripts/stages/{stage1}/` (loop.yaml, prompt.md)
+- `scripts/stages/{stage2}/` (loop.yaml, prompt.md)
 
 **Pipeline:**
 - `scripts/pipelines/{name}.yaml`

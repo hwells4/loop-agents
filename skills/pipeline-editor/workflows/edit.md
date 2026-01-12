@@ -14,14 +14,14 @@ Before doing anything, understand what exists:
 
 ```bash
 # See what stages exist
-ls scripts/loops/
+ls scripts/stages/
 
 # See what pipelines exist
 ls scripts/pipelines/*.yaml
 
 # Read a stage's config
-cat scripts/loops/{stage}/loop.yaml
-cat scripts/loops/{stage}/prompt.md
+cat scripts/stages/{stage}/loop.yaml
+cat scripts/stages/{stage}/prompt.md
 
 # Read a pipeline's config
 cat scripts/pipelines/{name}.yaml

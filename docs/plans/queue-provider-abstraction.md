@@ -6,7 +6,7 @@ Generalize the queue/work system to support multiple providers (beads, file-base
 
 **Current state:** The work stage is hardcoded to use `bd` (beads CLI) in three places:
 - `scripts/lib/completions/beads-empty.sh:20` - completion check
-- `scripts/loops/work/prompt.md` - agent instructions (4 locations)
+- `scripts/stages/work/prompt.md` - agent instructions (4 locations)
 - `scripts/engine.sh:88` - termination type mapping
 
 **Target state:** Provider-agnostic queue interface where providers are pluggable and prompts receive injected commands.
@@ -59,7 +59,7 @@ QUEUE_CONFIG='{"dir":"todos"}'    # Provider-specific config as JSON
 ### Configuration Schema
 
 ```yaml
-# scripts/loops/work/loop.yaml
+# scripts/stages/work/loop.yaml
 name: work
 description: Implement features from queue until done
 
@@ -249,10 +249,10 @@ check_completion() {
 
 ```bash
 # engine.sh: load_stage() additions
-local queue_provider=$(json_get "$LOOP_CONFIG" ".queue.provider" "beads")
-local queue_config=$(json_get "$LOOP_CONFIG" ".queue.config" "{}")
+local queue_provider=$(json_get "$STAGE_CONFIG" ".queue.provider" "beads")
+local queue_config=$(json_get "$STAGE_CONFIG" ".queue.config" "{}")
 
-if [ "$LOOP_COMPLETION" = "queue-empty" ] || [ "$LOOP_COMPLETION" = "beads-empty" ]; then
+if [ "$STAGE_COMPLETION" = "queue-empty" ] || [ "$STAGE_COMPLETION" = "beads-empty" ]; then
   load_queue_provider "$queue_provider" "$queue_config" || return 1
 fi
 ```

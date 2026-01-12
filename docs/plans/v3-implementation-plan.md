@@ -1,10 +1,10 @@
-# Loop Agents v3 Implementation Plan
+# Agent Pipelines v3 Implementation Plan
 
 > **Status: ✅ COMPLETE** - All phases implemented, tests passing (295 tests), code review fixes applied.
 
 ## Overview
 
-This plan details the implementation of the Loop Agents v3 architecture, transforming the current system from a variable-based template resolution to a unified context manifest approach. The goal is to make the system so standardized that agents can create new pipelines without making mistakes.
+This plan details the implementation of the Agent Pipelines v3 architecture, transforming the current system from a variable-based template resolution to a unified context manifest approach. The goal is to make the system so standardized that agents can create new pipelines without making mistakes.
 
 **Key Changes:**
 1. Context manifest (`context.json`) replacing 9+ template variables
@@ -119,8 +119,8 @@ For each phase:
 | `scripts/lib/completions/fixed-n.sh` | 19 | Minor: integrate with new status format |
 | `scripts/lib/progress.sh` | 58 | No changes (kept as-is) |
 | `scripts/lib/parse.sh` | 43 | Deprecate in favor of status.json reading |
-| `scripts/loops/*/loop.yaml` | 5 files | Update schema (new termination block) |
-| `scripts/loops/*/prompt.md` | 4 files | Update to use `${CTX}` and write status.json |
+| `scripts/stages/*/loop.yaml` | 5 files | Update schema (new termination block) |
+| `scripts/stages/*/prompt.md` | 4 files | Update to use `${CTX}` and write status.json |
 | `scripts/pipelines/*.yaml` | 3 files | Add `inputs` configuration |
 
 ### Current Variable Usage (to be replaced)
@@ -220,16 +220,16 @@ test)
 
 #### 0.4 Create Fixture Templates
 
-**Directory:** `scripts/loops/*/fixtures/`
+**Directory:** `scripts/stages/*/fixtures/`
 
-Create default fixtures for each loop type:
+Create default fixtures for each stage type:
 
 ```
-scripts/loops/work/fixtures/
+scripts/stages/work/fixtures/
 ├── default.txt          # Default mock response
 └── status.json          # Expected status format
 
-scripts/loops/improve-plan/fixtures/
+scripts/stages/improve-plan/fixtures/
 ├── iteration-1.txt      # First iteration response
 ├── iteration-2.txt      # Second iteration (plateau)
 └── status.json          # Expected status format
@@ -392,7 +392,7 @@ Add context generation before prompt resolution:
 local context_file=$(generate_context "$session" "$i" "$stage_config_json" "$run_dir")
 
 # Resolve prompt using context file
-local resolved_prompt=$(resolve_prompt "$LOOP_PROMPT" "$context_file")
+local resolved_prompt=$(resolve_prompt "$STAGE_PROMPT" "$context_file")
 ```
 
 #### Success Criteria - Phase 1
@@ -925,7 +925,7 @@ fi
 #### 3.2 Remove `output.mode` from Schema
 
 **Files to update:**
-- `scripts/loops/*/loop.yaml` - Remove any `output:` blocks with `mode:`
+- `scripts/stages/*/loop.yaml` - Remove any `output:` blocks with `mode:`
 - `scripts/engine.sh` - Remove mode-based output handling
 
 **New simplified schema:**
@@ -1602,7 +1602,7 @@ test_engine_creates_output_snapshot() {
   mkdir -p "$run_dir"
 
   # Enable mock mode with a fixture that writes status.json
-  enable_mock "$SCRIPT_DIR/loops/work/fixtures"
+  enable_mock "$SCRIPT_DIR/stages/work/fixtures"
 
   # Run one iteration through the engine
   # Note: This requires mock infrastructure to intercept Claude calls
@@ -1644,7 +1644,7 @@ test_engine_preserves_agent_status() {
   mkdir -p "$run_dir"
 
   # Enable mock mode with fixture that DOES write status.json with decision=stop
-  enable_mock "$SCRIPT_DIR/loops/improve-plan/fixtures"
+  enable_mock "$SCRIPT_DIR/stages/improve-plan/fixtures"
 
   # Run one iteration
   MOCK_MODE=true run_stage "improve-plan" "test-session" 1 "$run_dir" 0 1 2>/dev/null || true
@@ -1690,7 +1690,7 @@ run_test "Engine preserves agent status" test_engine_preserves_agent_status
 
 #### 6.2 Update All Prompts
 
-For each prompt in `scripts/loops/*/prompt.md`:
+For each prompt in `scripts/stages/*/prompt.md`:
 
 1. Replace variable references:
    ```markdown
@@ -1711,7 +1711,7 @@ For each prompt in `scripts/loops/*/prompt.md`:
 **Files to modify:**
 - `scripts/lib/resolve.sh` - Remove old variable resolution
 - `scripts/lib/parse.sh` - Deprecate (keep for reference, mark as unused)
-- `scripts/engine.sh` - Remove `LOOP_OUTPUT_PARSE` handling
+- `scripts/engine.sh` - Remove `STAGE_OUTPUT_PARSE` handling
 
 #### 6.4 Update Documentation
 
@@ -1912,11 +1912,11 @@ Phase 6: Cleanup & Migration
 
 ### New Files (Phase 0)
 - `scripts/lib/mock.sh` - Mock execution for testing
-- `scripts/loops/work/fixtures/default.txt` - Mock response fixture
-- `scripts/loops/work/fixtures/status.json` - Expected status schema
-- `scripts/loops/improve-plan/fixtures/` - Plateau mock fixtures
-- `scripts/loops/elegance/fixtures/` - Elegance mock fixtures
-- `scripts/loops/idea-wizard/fixtures/` - Idea wizard mock fixtures
+- `scripts/stages/work/fixtures/default.txt` - Mock response fixture
+- `scripts/stages/work/fixtures/status.json` - Expected status schema
+- `scripts/stages/improve-plan/fixtures/` - Plateau mock fixtures
+- `scripts/stages/elegance/fixtures/` - Elegance mock fixtures
+- `scripts/stages/idea-wizard/fixtures/` - Idea wizard mock fixtures
 
 ### New Files (Phases 1-5)
 - `scripts/lib/context.sh` - Context manifest generator
@@ -1933,8 +1933,8 @@ Phase 6: Cleanup & Migration
 - `scripts/lib/state.sh` - Enhanced failure state
 - `scripts/lib/completions/beads-empty.sh` - Status integration
 - `scripts/lib/completions/fixed-n.sh` - Status integration
-- All `scripts/loops/*/loop.yaml` - New schema
-- All `scripts/loops/*/prompt.md` - New variables, status output
+- All `scripts/stages/*/loop.yaml` - New schema
+- All `scripts/stages/*/prompt.md` - New variables, status output
 - All `scripts/pipelines/*.yaml` - Input selection
 
 ### Deprecated (keep for reference)

@@ -9,7 +9,7 @@
 **Problem:** Users creating pipelines must understand what existing stages do by reading YAML and prompt files. There's no quick way to browse available stages, see examples of their output, or understand their tradeoffs.
 
 **Solution:** Build a stage catalog accessible via `/pipeline catalog`:
-- Interactive list showing all stages in `scripts/loops/`
+- Interactive list showing all stages in `scripts/stages/`
 - For each stage: description, termination strategy, model recommendation
 - "Example output" showing a real iteration result from that stage
 - Recommendation tags: "good for planning", "high-quality output", "fast"
@@ -449,7 +449,7 @@ Implementation:
 
 **Solution:** Add parameterized stages that accept configuration at invocation time:
 ```yaml
-# scripts/loops/code-review/loop.yaml
+# scripts/stages/code-review/loop.yaml
 name: code-review
 description: General code review with configurable focus
 parameters:

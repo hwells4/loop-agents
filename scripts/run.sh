@@ -20,7 +20,7 @@ show_help() {
   echo "Usage: run.sh <command> [options]"
   echo ""
   echo "Commands:"
-  echo "  <loop-type> [session] [max]     Run a single-stage pipeline (shortcut)"
+  echo "  <stage-type> [session] [max]     Run a single-stage pipeline (shortcut)"
   echo "  loop <type> [session] [max]     Run a single-stage pipeline (explicit)"
   echo "  pipeline <file> [session]       Run a multi-stage pipeline"
   echo "  lint [loop|pipeline] [name]     Validate configurations"
@@ -108,7 +108,7 @@ case "$1" in
     fi
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  Loop Agents Test Suite"
+    echo "  Agent Pipelines Test Suite"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
@@ -194,10 +194,10 @@ case "$1" in
     # Convert loop command to single-stage pipeline
     # Usage: run.sh loop <type> [session] [max] [--force] [--resume]
     shift
-    LOOP_TYPE=${1:?"Usage: run.sh loop <type> [session] [max]"}
+    STAGE_TYPE=${1:?"Usage: run.sh loop <type> [session] [max]"}
     shift
     # Pass remaining args to engine.sh pipeline with special marker
-    exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$LOOP_TYPE" "$@"
+    exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
     ;;
 
   pipeline)
@@ -210,12 +210,12 @@ case "$1" in
     ;;
 
   *)
-    # Check if first arg is a valid loop type (shortcut syntax)
+    # Check if first arg is a valid stage type (shortcut syntax)
     # e.g., ./run.sh work auth 25 → same as ./run.sh loop work auth 25
     if [ -d "$SCRIPT_DIR/stages/$1" ]; then
-      LOOP_TYPE=$1
+      STAGE_TYPE=$1
       shift
-      exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$LOOP_TYPE" "$@"
+      exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
     fi
 
     echo "Error: Unknown command '$1'"

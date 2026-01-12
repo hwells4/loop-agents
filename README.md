@@ -12,7 +12,7 @@ Describe what you want to build, and Claude handles the rest: planning, task bre
 
 ## Build Your Own Stages
 
-Agent Pipelines is also a framework for creating custom loop types. Each loop agent has:
+Agent Pipelines is also a framework for creating custom stage types. Each loop agent has:
 
 - A **prompt** that tells Claude what to do each iteration
 - A **completion strategy** that decides when to stop
@@ -33,7 +33,7 @@ Scaffold a new loop in seconds:
 /agent-pipelines:build-loop bugfix
 ```
 
-This creates `scripts/loops/bugfix/` with a config and prompt template. Edit the prompt, pick your completion strategy, done.
+This creates `scripts/stages/bugfix/` with a config and prompt template. Edit the prompt, pick your completion strategy, done.
 
 ## Installation
 
@@ -60,7 +60,7 @@ The plugin checks for these on startup:
 ### Primary Commands
 
 ```bash
-/loop              # Orchestration hub: plan, status, attach, kill
+/sessions          # Orchestration hub: plan, status, attach, kill
 /work              # Run the work loop: implement tasks from beads
 /refine            # Run refinement pipelines: improve plans and beads
 /ideate            # Generate improvement ideas (one-shot)
@@ -69,10 +69,10 @@ The plugin checks for these on startup:
 ### Loop Management
 
 ```bash
-/loop status       # Check all running loops
-/loop attach NAME  # Watch a loop live (Ctrl+b, d to detach)
-/loop kill NAME    # Stop a session
-/loop plan         # Plan a new feature (PRD → beads)
+/sessions status       # Check all running loops
+/sessions attach NAME  # Watch a loop live (Ctrl+b, d to detach)
+/sessions kill NAME    # Stop a session
+/sessions plan         # Plan a new feature (PRD → beads)
 ```
 
 ### Supporting Skills
@@ -80,7 +80,7 @@ The plugin checks for these on startup:
 ```bash
 /agent-pipelines:create-prd     # Generate product requirements document
 /agent-pipelines:create-tasks   # Break PRD into executable beads
-/agent-pipelines:build-loop     # Scaffold a new custom loop type
+/agent-pipelines:build-stage    # Scaffold a new custom stage type
 ```
 
 Or just talk to Claude naturally:
@@ -93,7 +93,7 @@ Or just talk to Claude naturally:
 
 ## How It Works
 
-Run `/loop` and tell Claude what you're working on:
+Run `/sessions` and tell Claude what you're working on:
 
 1. **Planning phase**: Claude gathers context through adaptive questioning, generates a PRD, and breaks it into discrete tasks (beads)
 2. **Loop launch**: Claude spawns a tmux session running the loop engine
@@ -106,13 +106,13 @@ You describe work → Claude plans → tmux loop spawns → Fresh Claude per tas
 
 The loop runs **independently** of your Claude Code session. You can:
 - Continue working on other things while loops run
-- Attach to watch live progress (`/loop attach`)
+- Attach to watch live progress (`/sessions attach`)
 - Spin up multiple loops for parallel work
 - Recover if Claude Code crashes—loops keep running in tmux
 
 ## Loop Types
 
-The plugin includes four loop types, each designed for a different phase of work:
+The plugin includes four stage types, each designed for a different phase of work:
 
 | Loop | Purpose | Stops When |
 |------|---------|------------|
@@ -126,7 +126,7 @@ The plugin includes four loop types, each designed for a different phase of work
 The primary loop for implementation. Each iteration:
 
 1. Reads progress file for accumulated context
-2. Lists available beads: `bd ready --label=loop/{session}`
+2. Lists available beads: `bd ready --label=pipeline/{session}`
 3. Picks the next logical task (considering dependencies)
 4. Claims it: `bd update {id} --status=in_progress`
 5. Implements, tests, commits
@@ -195,7 +195,7 @@ Available pipelines:
 
 ```
 scripts/
-├── stages/                    # Stage definitions + loop types
+├── stages/                    # Stage definitions
 │   ├── engine.sh              # Core loop runner
 │   ├── run.sh                 # Convenience wrapper
 │   ├── config.sh              # YAML configuration loader
@@ -217,7 +217,7 @@ scripts/
 
 ### Loop Configuration
 
-Each loop type is defined by a `loop.yaml`:
+Each stage type is defined by a `loop.yaml`:
 
 ```yaml
 name: work
@@ -319,7 +319,7 @@ Loops export these for hooks and prompts:
 |----------|-------------|
 | `CLAUDE_PIPELINE_AGENT` | Always `1` when inside a loop |
 | `CLAUDE_PIPELINE_SESSION` | Current session name |
-| `CLAUDE_PIPELINE_TYPE` | Current loop type |
+| `CLAUDE_PIPELINE_TYPE` | Current stage type |
 
 ## Limitations
 

@@ -101,7 +101,7 @@ Before spawning, synthesize your understanding into a requirements summary:
 
 First, get existing stages:
 ```bash
-ls scripts/loops/
+ls scripts/stages/
 ```
 
 Then invoke the subagent:
@@ -115,7 +115,7 @@ REQUIREMENTS SUMMARY:
 {your_requirements_summary}
 
 EXISTING STAGES:
-{output from ls scripts/loops/}
+{output from ls scripts/stages/}
 """
 )
 ```
@@ -154,7 +154,7 @@ Present the architecture clearly. Use formatting to make it scannable.
 
 ### Existing Stages Reused
 
-- {stage}: Already exists in scripts/loops/
+- {stage}: Already exists in scripts/stages/
 - {stage}: Will be created
 
 ### Rationale

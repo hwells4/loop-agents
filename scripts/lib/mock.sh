@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mock Execution Mode for Loop Agents
+# Mock Execution Mode for Agent Pipelines
 #
 # Enables testing loop execution without calling Claude API.
 # Uses fixture files to provide mock responses.
@@ -211,7 +211,7 @@ list_fixtures() {
   done
 }
 
-# Create fixture set for a loop type
+# Create fixture set for a stage type
 # Usage: create_fixture_set "work" "beads-empty"
 create_fixture_set() {
   local loop_name=$1

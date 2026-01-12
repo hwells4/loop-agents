@@ -179,7 +179,7 @@ Lock files (`.claude/locks/{session}.lock`):
 
 Each loop has two files:
 
-`scripts/loops/<name>/loop.yaml` - when to stop:
+`scripts/stages/<name>/loop.yaml` - when to stop:
 ```yaml
 name: my-loop
 description: What this loop does
@@ -190,7 +190,7 @@ termination:
 delay: 3
 ```
 
-`scripts/loops/<name>/prompt.md` - what Claude does each iteration:
+`scripts/stages/<name>/prompt.md` - what Claude does each iteration:
 ```markdown
 # My Agent
 
@@ -215,7 +215,7 @@ description: What this does
 
 stages:
   - name: plan
-    loop: improve-plan    # references scripts/loops/improve-plan/
+    loop: improve-plan    # references scripts/stages/improve-plan/
     runs: 5
 
   - name: custom

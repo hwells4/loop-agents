@@ -40,7 +40,7 @@ All bash commands for session management, organized by operation.
 
 **List available stage types:**
 ```bash
-ls scripts/loops/
+ls scripts/stages/
 ```
 
 **List available pipelines:**
@@ -55,7 +55,7 @@ cat scripts/pipelines/full-refine.yaml
 
 **View stage configuration:**
 ```bash
-cat scripts/loops/work/loop.yaml
+cat scripts/stages/work/loop.yaml
 ```
 </discovery_commands>
 

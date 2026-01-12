@@ -1,5 +1,5 @@
 #!/bin/bash
-# Lightweight Test Runner for Loop Agents
+# Lightweight Test Runner for Agent Pipelines
 #
 # Usage:
 #   source "$LIB_DIR/test.sh"

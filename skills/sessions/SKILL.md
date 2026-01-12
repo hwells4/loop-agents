@@ -122,7 +122,7 @@ tmux capture-pane -t pipeline-{session} -p | tail -50
 All domain knowledge in `references/`:
 
 **Commands:** commands.md - All bash commands for session management
-**Stage Types:** Available via `ls scripts/loops/`
+**Stage Types:** Available via `ls scripts/stages/`
 **Pipelines:** Available via `ls scripts/pipelines/*.yaml`
 </reference_index>
 

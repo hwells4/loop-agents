@@ -42,7 +42,7 @@ validate_session_name() {
 KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS"
 
 # Validate a loop configuration
-# Usage: validate_loop "loop-name" [--quiet]
+# Usage: validate_stage "stage-name" [--quiet]
 # Returns: 0 if valid, 1 if errors found
 validate_loop() {
   local name=$1
@@ -423,7 +423,7 @@ lint_all() {
 }
 
 # Generate a dry-run preview for a loop
-# Usage: dry_run_loop "loop-name" "session-name"
+# Usage: dry_run_stage "stage-name" "session-name"
 dry_run_loop() {
   local name=$1
   local session=${2:-"preview"}

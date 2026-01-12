@@ -6,11 +6,11 @@ description: Quick planning refinement (fewer iterations)
 
 stages:
   - name: improve-plan
-    loop: improve-plan
+    stage: improve-plan
     runs: 3
 
   - name: refine-beads
-    loop: refine-beads
+    stage: refine-beads
     runs: 3
     inputs:
       from: improve-plan

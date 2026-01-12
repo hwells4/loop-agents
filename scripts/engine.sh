@@ -54,7 +54,7 @@ export CLAUDE_PIPELINE_AGENT=1
 #-------------------------------------------------------------------------------
 
 # Load a stage definition from stages/ directory
-# Sets: LOOP_CONFIG (JSON), LOOP_PROMPT, LOOP_*
+# Sets: STAGE_CONFIG (JSON), STAGE_PROMPT, STAGE_*
 load_stage() {
   local stage_type=$1
   local stage_dir="$STAGES_DIR/$stage_type"
@@ -75,45 +75,45 @@ load_stage() {
     return 1
   fi
 
-  LOOP_CONFIG=$(yaml_to_json "$config_file")
+  STAGE_CONFIG=$(yaml_to_json "$config_file")
 
   # Extract config values
-  LOOP_NAME=$(json_get "$LOOP_CONFIG" ".name" "$stage_type")
+  STAGE_NAME=$(json_get "$STAGE_CONFIG" ".name" "$stage_type")
 
   # v3 schema: read termination block first, fallback to v2 completion field
-  local term_type=$(json_get "$LOOP_CONFIG" ".termination.type" "")
+  local term_type=$(json_get "$STAGE_CONFIG" ".termination.type" "")
   if [ -n "$term_type" ]; then
     # v3: map termination type to completion strategy
     case "$term_type" in
-      queue) LOOP_COMPLETION="beads-empty" ;;
-      judgment) LOOP_COMPLETION="plateau" ;;
-      fixed) LOOP_COMPLETION="fixed-n" ;;
-      *) LOOP_COMPLETION="$term_type" ;;
+      queue) STAGE_COMPLETION="beads-empty" ;;
+      judgment) STAGE_COMPLETION="plateau" ;;
+      fixed) STAGE_COMPLETION="fixed-n" ;;
+      *) STAGE_COMPLETION="$term_type" ;;
     esac
-    LOOP_MIN_ITERATIONS=$(json_get "$LOOP_CONFIG" ".termination.min_iterations" "1")
-    LOOP_CONSENSUS=$(json_get "$LOOP_CONFIG" ".termination.consensus" "2")
+    STAGE_MIN_ITERATIONS=$(json_get "$STAGE_CONFIG" ".termination.min_iterations" "1")
+    STAGE_CONSENSUS=$(json_get "$STAGE_CONFIG" ".termination.consensus" "2")
   else
     # v2 legacy: use completion field directly
-    LOOP_COMPLETION=$(json_get "$LOOP_CONFIG" ".completion" "fixed-n")
-    LOOP_MIN_ITERATIONS=$(json_get "$LOOP_CONFIG" ".min_iterations" "1")
-    LOOP_CONSENSUS="2"
+    STAGE_COMPLETION=$(json_get "$STAGE_CONFIG" ".completion" "fixed-n")
+    STAGE_MIN_ITERATIONS=$(json_get "$STAGE_CONFIG" ".min_iterations" "1")
+    STAGE_CONSENSUS="2"
   fi
 
-  LOOP_MODEL=$(json_get "$LOOP_CONFIG" ".model" "opus")
-  LOOP_DELAY=$(json_get "$LOOP_CONFIG" ".delay" "3")
-  LOOP_CHECK_BEFORE=$(json_get "$LOOP_CONFIG" ".check_before" "false")
-  LOOP_OUTPUT_PARSE=$(json_get "$LOOP_CONFIG" ".output_parse" "")
-  LOOP_ITEMS=$(json_get "$LOOP_CONFIG" ".items" "")
-  LOOP_PROMPT_NAME=$(json_get "$LOOP_CONFIG" ".prompt" "prompt")
-  LOOP_OUTPUT_PATH=$(json_get "$LOOP_CONFIG" ".output_path" "")
+  STAGE_MODEL=$(json_get "$STAGE_CONFIG" ".model" "opus")
+  STAGE_DELAY=$(json_get "$STAGE_CONFIG" ".delay" "3")
+  STAGE_CHECK_BEFORE=$(json_get "$STAGE_CONFIG" ".check_before" "false")
+  STAGE_OUTPUT_PARSE=$(json_get "$STAGE_CONFIG" ".output_parse" "")
+  STAGE_ITEMS=$(json_get "$STAGE_CONFIG" ".items" "")
+  STAGE_PROMPT_NAME=$(json_get "$STAGE_CONFIG" ".prompt" "prompt")
+  STAGE_OUTPUT_PATH=$(json_get "$STAGE_CONFIG" ".output_path" "")
 
   # Export for completion strategies
-  export MIN_ITERATIONS="$LOOP_MIN_ITERATIONS"
-  export CONSENSUS="$LOOP_CONSENSUS"
-  export ITEMS="$LOOP_ITEMS"
+  export MIN_ITERATIONS="$STAGE_MIN_ITERATIONS"
+  export CONSENSUS="$STAGE_CONSENSUS"
+  export ITEMS="$STAGE_ITEMS"
 
   # Load prompt
-  local prompt_file="$stage_dir/prompts/${LOOP_PROMPT_NAME}.md"
+  local prompt_file="$stage_dir/prompts/${STAGE_PROMPT_NAME}.md"
   if [ ! -f "$prompt_file" ]; then
     prompt_file="$stage_dir/prompt.md"
   fi
@@ -123,8 +123,8 @@ load_stage() {
     return 1
   fi
 
-  LOOP_PROMPT=$(cat "$prompt_file")
-  LOOP_DIR="$stage_dir"
+  STAGE_PROMPT=$(cat "$prompt_file")
+  STAGE_DIR="$stage_dir"
 }
 
 #-------------------------------------------------------------------------------
@@ -165,9 +165,9 @@ run_stage() {
   load_stage "$stage_type" || return 1
 
   # Source completion strategy
-  local completion_script="$LIB_DIR/completions/${LOOP_COMPLETION}.sh"
+  local completion_script="$LIB_DIR/completions/${STAGE_COMPLETION}.sh"
   if [ ! -f "$completion_script" ]; then
-    echo "Error: Unknown completion strategy: $LOOP_COMPLETION" >&2
+    echo "Error: Unknown completion strategy: $STAGE_COMPLETION" >&2
     return 1
   fi
   source "$completion_script"
@@ -183,12 +183,12 @@ run_stage() {
   # Display header
   if [ "$start_iteration" -eq 1 ]; then
     echo ""
-    echo "  Loop: $LOOP_NAME"
+    echo "  Loop: $STAGE_NAME"
     echo "  Session: $session"
     echo "  Max iterations: $max_iterations"
-    echo "  Model: $LOOP_MODEL"
-    echo "  Completion: $LOOP_COMPLETION"
-    [ -n "$LOOP_OUTPUT_PATH" ] && echo "  Output: ${LOOP_OUTPUT_PATH//\$\{SESSION\}/$session}"
+    echo "  Model: $STAGE_MODEL"
+    echo "  Completion: $STAGE_COMPLETION"
+    [ -n "$STAGE_OUTPUT_PATH" ] && echo "  Output: ${STAGE_OUTPUT_PATH//\$\{SESSION\}/$session}"
     echo ""
   else
     show_resume_info "$session" "$start_iteration" "$max_iterations"
@@ -203,7 +203,7 @@ run_stage() {
     mark_iteration_started "$state_file" "$i"
 
     # Pre-iteration completion check
-    if [ "$LOOP_CHECK_BEFORE" = "true" ]; then
+    if [ "$STAGE_CHECK_BEFORE" = "true" ]; then
       if check_completion "$session" "$state_file" ""; then
         local reason=$(check_completion "$session" "$state_file" "" 2>&1)
         echo "$reason"
@@ -215,8 +215,8 @@ run_stage() {
 
     # Resolve output_path (replace ${SESSION} with actual session name)
     local resolved_output_path=""
-    if [ -n "$LOOP_OUTPUT_PATH" ]; then
-      resolved_output_path="${LOOP_OUTPUT_PATH//\$\{SESSION\}/$session}"
+    if [ -n "$STAGE_OUTPUT_PATH" ]; then
+      resolved_output_path="${STAGE_OUTPUT_PATH//\$\{SESSION\}/$session}"
       resolved_output_path="${resolved_output_path//\$\{SESSION_NAME\}/$session}"
       # Create parent directory if it doesn't exist
       local output_dir=$(dirname "$resolved_output_path")
@@ -249,11 +249,11 @@ run_stage() {
       '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file}')
 
     # Resolve prompt
-    local resolved_prompt=$(resolve_prompt "$LOOP_PROMPT" "$vars_json")
+    local resolved_prompt=$(resolve_prompt "$STAGE_PROMPT" "$vars_json")
 
     # Execute Claude
     set +e
-    local output=$(execute_claude "$resolved_prompt" "$LOOP_MODEL" | tee /dev/stderr)
+    local output=$(execute_claude "$resolved_prompt" "$STAGE_MODEL" | tee /dev/stderr)
     local exit_code=$?
     set -e
 
@@ -327,8 +327,8 @@ run_stage() {
     fi
 
     echo ""
-    echo "Waiting ${LOOP_DELAY} seconds..."
-    sleep "$LOOP_DELAY"
+    echo "Waiting ${STAGE_DELAY} seconds..."
+    sleep "$STAGE_DELAY"
   done
 
   echo ""
@@ -419,8 +419,8 @@ run_pipeline() {
     # If using a stage type, load its config
     if [ -n "$stage_type" ]; then
       load_stage "$stage_type" || exit 1
-      [ -z "$stage_prompt" ] && stage_prompt="$LOOP_PROMPT"
-      [ -z "$stage_completion" ] && stage_completion="$LOOP_COMPLETION"
+      [ -z "$stage_prompt" ] && stage_prompt="$STAGE_PROMPT"
+      [ -z "$stage_completion" ] && stage_completion="$STAGE_COMPLETION"
     fi
 
     # Initialize progress for this stage
@@ -635,8 +635,8 @@ case "$MODE" in
     if [ "$1" = "--single-stage" ]; then
       SINGLE_STAGE="true"
       shift
-      LOOP_TYPE=${1:?"Usage: engine.sh pipeline --single-stage <loop-type> [session] [max]"}
-      SESSION=${2:-"$LOOP_TYPE"}
+      STAGE_TYPE=${1:?"Usage: engine.sh pipeline --single-stage <stage-type> [session] [max]"}
+      SESSION=${2:-"$STAGE_TYPE"}
       MAX_ITERATIONS=${3:-25}
     else
       PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force] [--resume]"}
@@ -686,7 +686,7 @@ case "$MODE" in
     if [ "$SINGLE_STAGE" = "true" ]; then
       # Single-stage pipeline: run the loop directly using run_stage
       mkdir -p "$RUN_DIR"
-      run_stage "$LOOP_TYPE" "$SESSION" "$MAX_ITERATIONS" "$RUN_DIR" "0" "$START_ITERATION"
+      run_stage "$STAGE_TYPE" "$SESSION" "$MAX_ITERATIONS" "$RUN_DIR" "0" "$START_ITERATION"
     else
       run_pipeline "$PIPELINE_FILE" "$SESSION"
     fi

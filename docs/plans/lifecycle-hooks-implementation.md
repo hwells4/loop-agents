@@ -112,15 +112,15 @@ Hooks receive context via environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `LOOP_SESSION` | Session name |
-| `LOOP_TYPE` | Loop type (work, improve-plan, etc.) |
-| `LOOP_ITERATION` | Current iteration number |
-| `LOOP_MAX_ITERATIONS` | Maximum iterations configured |
-| `LOOP_STATUS` | Current status (running, completed, failed) |
-| `LOOP_PROGRESS_FILE` | Path to progress file |
-| `LOOP_STATE_FILE` | Path to state file |
-| `LOOP_ERROR` | Error message (for on_error only) |
-| `LOOP_DURATION` | Elapsed time in seconds |
+| `PIPELINE_SESSION` | Session name |
+| `PIPELINE_TYPE` | Loop type (work, improve-plan, etc.) |
+| `PIPELINE_ITERATION` | Current iteration number |
+| `PIPELINE_MAX_ITERATIONS` | Maximum iterations configured |
+| `PIPELINE_STATUS` | Current status (running, completed, failed) |
+| `PIPELINE_PROGRESS_FILE` | Path to progress file |
+| `PIPELINE_STATE_FILE` | Path to state file |
+| `PIPELINE_ERROR` | Error message (for on_error only) |
+| `PIPELINE_DURATION` | Elapsed time in seconds |
 
 ## Implementation
 
@@ -148,14 +148,14 @@ execute_hook() {
   local args=("$@")
 
   # Export context as environment variables
-  export LOOP_SESSION="$SESSION"
-  export LOOP_TYPE="$LOOP_TYPE"
-  export LOOP_ITERATION="$CURRENT_ITERATION"
-  export LOOP_MAX_ITERATIONS="$MAX_ITERATIONS"
-  export LOOP_STATUS="$STATUS"
-  export LOOP_PROGRESS_FILE="$PROGRESS_FILE"
-  export LOOP_STATE_FILE="$STATE_FILE"
-  export LOOP_DURATION="$DURATION"
+  export PIPELINE_SESSION="$SESSION"
+  export PIPELINE_TYPE="$PIPELINE_TYPE"
+  export PIPELINE_ITERATION="$CURRENT_ITERATION"
+  export PIPELINE_MAX_ITERATIONS="$MAX_ITERATIONS"
+  export PIPELINE_STATUS="$STATUS"
+  export PIPELINE_PROGRESS_FILE="$PROGRESS_FILE"
+  export PIPELINE_STATE_FILE="$STATE_FILE"
+  export PIPELINE_DURATION="$DURATION"
 
   # Execute loop-specific hook if defined
   local loop_hook=$(get_loop_hook "$hook_name")
@@ -176,7 +176,7 @@ execute_hook() {
 # Get hook command from loop config
 get_loop_hook() {
   local hook_name=$1
-  json_get "$LOOP_CONFIG" ".hooks.$hook_name" ""
+  json_get "$STAGE_CONFIG" ".hooks.$hook_name" ""
 }
 ```
 

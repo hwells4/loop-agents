@@ -2,7 +2,7 @@
 
 ## What This Document Is
 
-This is the refined architecture plan for Loop Agents. It builds on v2 and incorporates the best ideas from the elegance review, while keeping what works.
+This is the refined architecture plan for Agent Pipelines. It builds on v2 and incorporates the best ideas from the elegance review, while keeping what works.
 
 **Goal:** Make the system so standardized that agents can create new pipelines without making mistakes, and humans can understand any stage definition at a glance.
 
@@ -10,7 +10,7 @@ This is the refined architecture plan for Loop Agents. It builds on v2 and incor
 
 ## The Core Idea (Unchanged)
 
-Loop Agents solves context degradation by spawning fresh Claude instances for each iteration. Each agent reads a progress file with accumulated learnings, does work, and appends what it learned.
+Agent Pipelines solves context degradation by spawning fresh Claude instances for each iteration. Each agent reads a progress file with accumulated learnings, does work, and appends what it learned.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

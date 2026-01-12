@@ -119,7 +119,7 @@ If via `/pipeline` command, this handoff is automatic.
 
 ```bash
 # List existing stages
-ls scripts/loops/
+ls scripts/stages/
 
 # List existing pipelines
 ls scripts/pipelines/*.yaml

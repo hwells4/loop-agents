@@ -113,7 +113,7 @@ All sessions run in `.claude/pipeline-runs/{session}/` with unified state tracki
 
 ### Stages
 
-A stage = prompt template + termination strategy. Stages are defined in `scripts/loops/{name}/`. Each iteration:
+A stage = prompt template + termination strategy. Stages are defined in `scripts/stages/{name}/`. Each iteration:
 1. Generates `context.json` with session metadata, paths, and inputs
 2. Resolves template variables (`${CTX}`, `${PROGRESS}`, `${STATUS}`, etc.)
 3. Executes Claude with resolved prompt
@@ -208,7 +208,7 @@ Available pipelines: `quick-refine.yaml` (3+3), `full-refine.yaml` (5+5), `deep-
 
 Stages are single-stage pipeline definitions. Create one to add a new pipeline type.
 
-1. Create directory: `scripts/loops/{name}/`
+1. Create directory: `scripts/stages/{name}/`
 2. Add `loop.yaml`:
 ```yaml
 name: my-stage

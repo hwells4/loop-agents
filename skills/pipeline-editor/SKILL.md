@@ -80,14 +80,14 @@ Before proposing changes, read the relevant files:
 
 ```bash
 # For a stage
-cat scripts/loops/{stage}/loop.yaml
-cat scripts/loops/{stage}/prompt.md
+cat scripts/stages/{stage}/loop.yaml
+cat scripts/stages/{stage}/prompt.md
 
 # For a pipeline
 cat scripts/pipelines/{name}.yaml
 
 # To see what exists
-ls scripts/loops/
+ls scripts/stages/
 ls scripts/pipelines/*.yaml
 ```
 
@@ -98,7 +98,7 @@ Present a clear plan before editing:
 ```markdown
 ## Proposed Changes
 
-**Target:** `scripts/loops/elegance/loop.yaml`
+**Target:** `scripts/stages/elegance/loop.yaml`
 
 **Current:**
 ```yaml

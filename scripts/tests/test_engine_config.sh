@@ -26,25 +26,25 @@ _parse_loop_config() {
   local term_type=$(json_get "$config" ".termination.type" "")
   if [ -n "$term_type" ]; then
     case "$term_type" in
-      queue) LOOP_COMPLETION="beads-empty" ;;
-      judgment) LOOP_COMPLETION="plateau" ;;
-      fixed) LOOP_COMPLETION="fixed-n" ;;
-      *) LOOP_COMPLETION="$term_type" ;;
+      queue) STAGE_COMPLETION="beads-empty" ;;
+      judgment) STAGE_COMPLETION="plateau" ;;
+      fixed) STAGE_COMPLETION="fixed-n" ;;
+      *) STAGE_COMPLETION="$term_type" ;;
     esac
-    LOOP_MIN_ITERATIONS=$(json_get "$config" ".termination.min_iterations" "1")
-    LOOP_CONSENSUS=$(json_get "$config" ".termination.consensus" "2")
-    LOOP_TERM_TYPE="$term_type"
+    STAGE_MIN_ITERATIONS=$(json_get "$config" ".termination.min_iterations" "1")
+    STAGE_CONSENSUS=$(json_get "$config" ".termination.consensus" "2")
+    STAGE_TERM_TYPE="$term_type"
   else
     # v2 legacy
-    LOOP_COMPLETION=$(json_get "$config" ".completion" "fixed-n")
-    LOOP_MIN_ITERATIONS=$(json_get "$config" ".min_iterations" "1")
-    LOOP_CONSENSUS="2"
-    LOOP_TERM_TYPE=""
+    STAGE_COMPLETION=$(json_get "$config" ".completion" "fixed-n")
+    STAGE_MIN_ITERATIONS=$(json_get "$config" ".min_iterations" "1")
+    STAGE_CONSENSUS="2"
+    STAGE_TERM_TYPE=""
   fi
 
   # Export for tests
-  export MIN_ITERATIONS="$LOOP_MIN_ITERATIONS"
-  export CONSENSUS="$LOOP_CONSENSUS"
+  export MIN_ITERATIONS="$STAGE_MIN_ITERATIONS"
+  export CONSENSUS="$STAGE_CONSENSUS"
 }
 
 #-------------------------------------------------------------------------------
@@ -54,8 +54,8 @@ _parse_loop_config() {
 test_work_stage_loads_queue_termination() {
   _parse_loop_config "$SCRIPT_DIR/stages/work"
 
-  assert_eq "queue" "$LOOP_TERM_TYPE" "work stage has termination.type=queue"
-  assert_eq "beads-empty" "$LOOP_COMPLETION" "queue maps to beads-empty completion"
+  assert_eq "queue" "$STAGE_TERM_TYPE" "work stage has termination.type=queue"
+  assert_eq "beads-empty" "$STAGE_COMPLETION" "queue maps to beads-empty completion"
 }
 
 #-------------------------------------------------------------------------------
@@ -65,8 +65,8 @@ test_work_stage_loads_queue_termination() {
 test_improve_plan_loads_judgment_termination() {
   _parse_loop_config "$SCRIPT_DIR/stages/improve-plan"
 
-  assert_eq "judgment" "$LOOP_TERM_TYPE" "improve-plan has termination.type=judgment"
-  assert_eq "plateau" "$LOOP_COMPLETION" "judgment maps to plateau completion"
+  assert_eq "judgment" "$STAGE_TERM_TYPE" "improve-plan has termination.type=judgment"
+  assert_eq "plateau" "$STAGE_COMPLETION" "judgment maps to plateau completion"
 }
 
 test_improve_plan_loads_consensus() {
@@ -97,8 +97,8 @@ test_improve_plan_loads_min_iterations() {
 test_elegance_loads_judgment_termination() {
   _parse_loop_config "$SCRIPT_DIR/stages/elegance"
 
-  assert_eq "judgment" "$LOOP_TERM_TYPE" "elegance has termination.type=judgment"
-  assert_eq "plateau" "$LOOP_COMPLETION" "judgment maps to plateau completion"
+  assert_eq "judgment" "$STAGE_TERM_TYPE" "elegance has termination.type=judgment"
+  assert_eq "plateau" "$STAGE_COMPLETION" "judgment maps to plateau completion"
 }
 
 test_elegance_loads_consensus() {
@@ -119,8 +119,8 @@ test_elegance_loads_consensus() {
 test_idea_wizard_loads_fixed_termination() {
   _parse_loop_config "$SCRIPT_DIR/stages/idea-wizard"
 
-  assert_eq "fixed" "$LOOP_TERM_TYPE" "idea-wizard has termination.type=fixed"
-  assert_eq "fixed-n" "$LOOP_COMPLETION" "fixed maps to fixed-n completion"
+  assert_eq "fixed" "$STAGE_TERM_TYPE" "idea-wizard has termination.type=fixed"
+  assert_eq "fixed-n" "$STAGE_COMPLETION" "fixed maps to fixed-n completion"
 }
 
 #-------------------------------------------------------------------------------
@@ -130,8 +130,8 @@ test_idea_wizard_loads_fixed_termination() {
 test_refine_beads_loads_judgment_termination() {
   _parse_loop_config "$SCRIPT_DIR/stages/refine-beads"
 
-  assert_eq "judgment" "$LOOP_TERM_TYPE" "refine-beads has termination.type=judgment"
-  assert_eq "plateau" "$LOOP_COMPLETION" "judgment maps to plateau completion"
+  assert_eq "judgment" "$STAGE_TERM_TYPE" "refine-beads has termination.type=judgment"
+  assert_eq "plateau" "$STAGE_COMPLETION" "judgment maps to plateau completion"
 }
 
 #-------------------------------------------------------------------------------

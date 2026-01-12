@@ -6,7 +6,7 @@ description: Create pipeline files from architecture specs. Takes confirmed spec
 ## What This Skill Does
 
 Takes an architecture specification and creates all necessary files:
-- New stages in `scripts/loops/{name}/`
+- New stages in `scripts/stages/{name}/`
 - Pipeline configs in `scripts/pipelines/{name}.yaml`
 - Validates everything with lint and dry-run
 
@@ -76,8 +76,8 @@ Task(
 ```
 
 Produces:
-- `scripts/loops/{name}/loop.yaml`
-- `scripts/loops/{name}/prompt.md`
+- `scripts/stages/{name}/loop.yaml`
+- `scripts/stages/{name}/prompt.md`
 
 ### pipeline-assembler
 
@@ -118,8 +118,8 @@ When complete, present:
 ## Pipeline Created
 
 **Files created:**
-- scripts/loops/{new-stage}/loop.yaml
-- scripts/loops/{new-stage}/prompt.md
+- scripts/stages/{new-stage}/loop.yaml
+- scripts/stages/{new-stage}/prompt.md
 - scripts/pipelines/{name}.yaml
 
 **Validation:** All lint checks passed
@@ -134,7 +134,7 @@ When complete, present:
 
 ```bash
 # Check what stages exist
-ls scripts/loops/
+ls scripts/stages/
 
 # Validate a stage
 ./scripts/run.sh lint loop {stage-name}

@@ -68,7 +68,7 @@ A good prompt has:
 3. **Guidance (not constraints)** - What to look for, how to approach
 4. **Status template** - JSON format for `${STATUS}`
 
-See `scripts/loops/elegance/prompt.md` for an exemplary template.
+See `scripts/stages/elegance/prompt.md` for an exemplary template.
 
 ### "How do I run a dry-run?"
 
@@ -105,8 +105,8 @@ Point users to existing configurations:
 
 ```bash
 # Stage examples
-cat scripts/loops/work/loop.yaml
-cat scripts/loops/elegance/prompt.md
+cat scripts/stages/work/loop.yaml
+cat scripts/stages/elegance/prompt.md
 
 # Pipeline examples
 cat scripts/pipelines/full-refine.yaml
@@ -120,7 +120,7 @@ After answering, suggest relevant follow-ups:
 **Next steps:**
 - `/pipeline` to design a new pipeline
 - `/agent-pipelines:sessions` to run an existing one
-- Explore `scripts/loops/` for more examples
+- Explore `scripts/stages/` for more examples
 ```
 
 ## Success Criteria

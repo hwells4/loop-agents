@@ -121,7 +121,7 @@ description: What the pipeline accomplishes
 
 stages:
   - name: stage-one
-    loop: existing-stage-type  # Directory in scripts/loops/
+    loop: existing-stage-type  # Directory in scripts/stages/
     runs: 5                    # Max iterations for this stage
 
   - name: stage-two

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Session initialization for Loop Agents
+# Session initialization for Agent Pipelines
 # Creates symlink, checks for running/completed loops
 
 PROJECT_PATH="${CLAUDE_PROJECT_DIR:-$(pwd)}"
@@ -34,18 +34,18 @@ if [ -f "$COMPLETIONS_FILE" ]; then
 fi
 
 # Check for running tmux loop sessions
-LOOP_SESSIONS=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "^loop-" | wc -l | tr -d ' ')
-if [ "$LOOP_SESSIONS" -gt 0 ]; then
+PIPELINE_SESSIONS=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "^pipeline-" | wc -l | tr -d ' ')
+if [ "$PIPELINE_SESSIONS" -gt 0 ]; then
   echo ""
-  echo "RUNNING LOOP SESSIONS: $LOOP_SESSIONS"
-  tmux list-sessions 2>/dev/null | grep "^loop-"
+  echo "RUNNING PIPELINE SESSIONS: $PIPELINE_SESSIONS"
+  tmux list-sessions 2>/dev/null | grep "^pipeline-"
   echo ""
   echo "  Check:  tmux capture-pane -t SESSION -p | tail -20"
   echo "  Attach: tmux attach -t SESSION"
 
   # Show ready beads for each running session
   if command -v bd &> /dev/null; then
-    for session in $(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "^loop-" | sed 's/^loop-//'); do
+    for session in $(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "^pipeline-" | sed 's/^loop-//'); do
       READY_OUTPUT=$(bd ready --label="pipeline/$session" 2>/dev/null | grep "\[" | wc -l | tr -d ' ')
       if [ "$READY_OUTPUT" -gt 0 ] 2>/dev/null; then
         echo ""
@@ -55,8 +55,8 @@ if [ "$LOOP_SESSIONS" -gt 0 ]; then
   fi
 
   # Check for stale sessions (>2 hours)
-  if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/skills/loops/scripts/warn-stale.sh" ]; then
-    bash "$PLUGIN_ROOT/skills/loops/scripts/warn-stale.sh"
+  if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/scripts/lib/warn-stale.sh" ]; then
+    bash "$PLUGIN_ROOT/scripts/lib/warn-stale.sh"
   fi
 fi
 

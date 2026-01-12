@@ -138,10 +138,10 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 ---
 
 ### 5. Loop Scaffolding Command
-**Problem:** Creating a new loop type requires knowing the exact file structure, required fields in loop.yaml, and template variable syntax. New users copy-paste and make mistakes.
+**Problem:** Creating a new stage type requires knowing the exact file structure, required fields in loop.yaml, and template variable syntax. New users copy-paste and make mistakes.
 
 **Solution:** Add `./scripts/run.sh init loop {name}` command:
-- Creates `scripts/loops/{name}/` directory
+- Creates `scripts/stages/{name}/` directory
 - Generates `loop.yaml` with all fields documented
 - Creates `prompt.md` with commented template showing available variables
 - Optionally copies from existing loop as starting point
@@ -171,7 +171,7 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 **Problem:** Invalid loop configurations (missing required fields, bad completion strategy names, undefined template variables) only fail at runtime—often deep into a long session. Users waste Claude credits discovering typos.
 
 **Solution:** Add `./scripts/run.sh lint` command:
-- Validates all loops in `scripts/loops/`
+- Validates all loops in `scripts/stages/`
 - Checks required fields: name, description, completion
 - Validates completion strategy exists in `lib/completions/`
 - Scans prompt.md for undefined template variables
@@ -221,7 +221,7 @@ hooks:
 
 **Solution:** Add test mode with mocked Claude responses:
 - `./scripts/run.sh test loop work` runs with mock responses
-- Define fixtures in `scripts/loops/{name}/fixtures/`:
+- Define fixtures in `scripts/stages/{name}/fixtures/`:
   - `iteration-1.txt` - mock Claude response for iteration 1
   - `iteration-2.txt` - etc.
 - Falls back to generic "PLATEAU: false" if no fixture

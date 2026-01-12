@@ -31,7 +31,7 @@ stages:
     perspectives: []       # Optional: Array of values for ${PERSPECTIVE}
 
     # Prompt source - use ONE of these:
-    loop: loop-name        # Option A: Use existing loop type's prompt
+    stage: stage-name        # Option A: Use existing loop type's prompt
     prompt: |              # Option B: Define prompt inline
       Your instructions here...
 ```
@@ -50,7 +50,7 @@ Use these in your prompts - they're resolved at runtime:
 | `${INPUTS.stage-name}` | All outputs from named stage | File contents |
 | `${INPUTS}` | Outputs from previous stage | File contents |
 
-**Loop-style variables** (for compatibility when using `loop:`):
+**Stage-style variables** (for compatibility when using `stage:`):
 
 | Variable | Maps To |
 |----------|---------|
@@ -80,11 +80,11 @@ Use these in your prompts - they're resolved at runtime:
 name: full-refine
 stages:
   - name: improve-plan
-    loop: improve-plan    # Uses loops/improve-plan/prompt.md
+    stage: improve-plan    # Uses loops/improve-plan/prompt.md
     runs: 5               # Inherits completion: plateau from loop
 
   - name: refine-beads
-    loop: refine-beads
+    stage: refine-beads
     runs: 5
 ```
 

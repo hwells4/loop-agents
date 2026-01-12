@@ -35,7 +35,7 @@ If session name not provided, ask:
 
 ```bash
 # List stage types
-ls scripts/loops/
+ls scripts/stages/
 
 # List pipelines
 ls scripts/pipelines/*.yaml 2>/dev/null | xargs -n1 basename
@@ -101,10 +101,10 @@ Use AskUserQuestion if conflict detected:
 **For single-stage:**
 ```bash
 # Check stage exists
-if [ ! -d "scripts/loops/${stage}" ]; then
+if [ ! -d "scripts/stages/${stage}" ]; then
     echo "Stage '${stage}' not found"
     echo "Available stages:"
-    ls scripts/loops/
+    ls scripts/stages/
     exit 1
 fi
 ```
