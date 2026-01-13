@@ -827,6 +827,73 @@ expect(token).toHaveLength(9);
 - [ ] Report organized by severity
 - [ ] Prioritized recommendations
 
+## Post-Audit Workflow
+
+After generating the audit report, ALWAYS do the following:
+
+### 1. Create Todos
+
+For each finding, create a markdown file in `todos/test-audit/`:
+
+**File naming:** `{priority}-{number}-{short-description}.md`
+- `critical-001-always-pass-test.md`
+- `high-001-mock-mismatch.md`
+- `medium-001-fixture-quality.md`
+
+**File format:**
+```markdown
+---
+priority: critical|high|medium|low
+status: open
+file: path/to/test/file.test.js
+lines: 100-128
+type: bug|improvement
+created: YYYY-MM-DD
+---
+
+# Short description of the issue
+
+## Problem
+
+What's wrong and code example.
+
+## Impact
+
+Why this matters.
+
+## Fix
+
+How to fix it with code example.
+```
+
+### 2. Ask User What to Fix
+
+After creating todos, use AskUserQuestion with these options:
+
+```
+Question: "Which test audit issues would you like me to fix now?"
+Options:
+- "Critical only (N issues)" - Fix only critical priority
+- "Critical + High (N issues)" - Fix critical and high priority
+- "All issues (N issues)" - Fix everything
+- "None - just keep the todos" - Leave for later
+```
+
+### 3. Execute Fixes
+
+Based on user selection:
+1. Read each relevant todo file
+2. Make the fix described
+3. Update todo status to `completed`
+4. Verify tests still pass after fix
+
+### 4. Summary
+
+After fixing, provide summary:
+- Issues fixed: N
+- Issues remaining: N
+- Tests passing: Yes/No
+
 ## References
 
 - `references/anti-patterns.md` - Detailed anti-pattern detection heuristics
