@@ -4,7 +4,7 @@
 Read progress file and available beads.
 
 ## Work Done
-1. Listed available beads: `bd ready --label=loop/test`
+1. Listed available beads: `bd ready --label=pipeline/test`
 2. Claimed bead: beads-mock-001
 3. Implemented mock feature
 4. Ran verification (passed)

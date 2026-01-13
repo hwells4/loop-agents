@@ -14,7 +14,7 @@ Never output questions as text. If you need information, invoke `AskUserQuestion
 Beads tagged with `pipeline/{session-name}` that an agent can execute autonomously:
 
 ```bash
-bd create --title="Story title" --type=task --priority=2 --add-label="pipeline/{session}"
+bd create --title="Story title" --type=task --priority=2 --labels="pipeline/{session}"
 ```
 
 ## Process
@@ -121,7 +121,7 @@ bd create \
   --title="Story title" \
   --type=task \
   --priority=2 \
-  --add-label="pipeline/{session-name}" \
+  --labels="pipeline/{session-name}" \
   --description="Description here" \
   --acceptance="- [ ] Criterion 1
 - [ ] Criterion 2

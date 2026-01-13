@@ -308,12 +308,22 @@ count_iterations() {
 
 # Check if specific iteration exists
 # Usage: iteration_exists "$run_dir" "$iteration"
+# Bug fix: loop-agents-o5t - engine uses stage-NN-name/iterations/ structure
 iteration_exists() {
   local run_dir=$1
   local iteration=$2
-  local iter_dir="$run_dir/iterations/$(printf "%03d" "$iteration")"
+  local iter_formatted=$(printf "%03d" "$iteration")
 
-  [ -d "$iter_dir" ]
+  # Engine nests iterations under stage directories: stage-NN-{name}/iterations/
+  # Check all possible stage directories for this iteration
+  for stage_dir in "$run_dir"/stage-*/iterations; do
+    if [ -d "$stage_dir/$iter_formatted" ]; then
+      return 0
+    fi
+  done
+
+  # Fallback: check legacy flat structure
+  [ -d "$run_dir/iterations/$iter_formatted" ]
 }
 
 #-------------------------------------------------------------------------------

@@ -508,9 +508,10 @@ dry_run_loop() {
   echo "|---------|------|"
   echo "| Run directory | .claude/pipeline-runs/${session}/ |"
   echo "| State file | .claude/pipeline-runs/${session}/state.json |"
-  echo "| Progress file | .claude/pipeline-runs/${session}/progress-${session}.md |"
-  echo "| Context file | .claude/pipeline-runs/${session}/context.json |"
-  echo "| Status file | .claude/pipeline-runs/${session}/status.json |"
+  echo "| Progress file | .claude/pipeline-runs/${session}/stage-00-${name}/progress.md |"
+  echo "| Iteration dir | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/ |"
+  echo "| Context file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/context.json |"
+  echo "| Status file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/status.json |"
   echo "| Lock file | .claude/locks/${session}.lock |"
   echo ""
 

@@ -22,6 +22,9 @@
 # Resolve all variables in a prompt template
 # Usage: resolve_prompt "$template" "$vars"
 # $vars: context.json path (v3 mode) OR JSON object (legacy mode)
+#
+# Note: The v3 file-based mode (when $vars is a .json file path) is currently
+# unused by engine.sh but retained for potential direct usage and testing.
 resolve_prompt() {
   local template=$1
   local vars=$2

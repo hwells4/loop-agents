@@ -28,7 +28,7 @@ done
 ### Step 2: List All Beads
 
 ```bash
-bd list --label=loop/${SESSION_NAME}
+bd list --label=pipeline/${SESSION_NAME}
 ```
 
 ### Step 3: Review Each Bead
@@ -47,7 +47,7 @@ For each bead, check:
 bd update <id> --description="..." --acceptance="..."
 
 # Add missing beads
-bd create --title="..." --type=task --priority=2 --add-label="loop/${SESSION_NAME}"
+bd create --title="..." --type=task --priority=2 --labels="pipeline/${SESSION_NAME}"
 
 # Fix dependencies
 bd dep add <issue> <depends-on>

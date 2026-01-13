@@ -20,12 +20,16 @@ This is NOT just a review pass. Each iteration should dig into something specifi
 
 ## Context
 
-**Plan being refined:** `tdd-prose-plan.md`
+**Plan location:** Check `docs/plans/` or `plans/` directories for the plan being refined:
+```bash
+ls docs/plans/*.md plans/*.md 2>/dev/null | head -5
+```
 
-**Research targets:**
-- https://github.com/tobi/qmd - Tobi's quality markdown/doc tool
-- https://github.com/steveyegge/beads - Steve Yegge's issue tracking for agents
-- https://github.com/Dicklesworthstone/mcp_agent_mail - MCP server for agents
+Read the plan file to understand what you're researching for:
+```bash
+# Read first found plan
+cat $(ls docs/plans/*.md plans/*.md 2>/dev/null | head -1)
+```
 
 **Constraints:**
 - Prefer local-only solutions (models we can run locally, scripts that work offline)

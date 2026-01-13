@@ -104,7 +104,7 @@ If no subcommand provided, use AskUserQuestion:
 
 **Check what's running:**
 ```bash
-tmux list-sessions 2>/dev/null | grep -E "^loop-"
+tmux list-sessions 2>/dev/null | grep -E "^pipeline-"
 ```
 
 **Peek at output:**

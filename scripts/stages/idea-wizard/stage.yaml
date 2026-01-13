@@ -6,6 +6,7 @@ description: Generate creative improvement ideas for the project
 
 termination:
   type: fixed
+  iterations: 3
 
 delay: 1
 output_path: docs/ideas-${SESSION}.md

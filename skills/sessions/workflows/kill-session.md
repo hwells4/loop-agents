@@ -136,7 +136,7 @@ Next actions:
   • Resume: ./scripts/run.sh ${type} ${session} ${max} --resume
   • Start fresh: ./scripts/run.sh ${type} ${session} ${max} --force
   • View progress: cat .claude/pipeline-runs/${session}/progress-${session}.md
-  • Check beads: bd list --label=loop/${session}
+  • Check beads: bd list --label=pipeline/${session}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```

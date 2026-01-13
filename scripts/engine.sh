@@ -443,6 +443,9 @@ run_pipeline() {
       load_stage "$stage_type" || exit 1
       [ -z "$stage_prompt" ] && stage_prompt="$STAGE_PROMPT"
       [ -z "$stage_completion" ] && stage_completion="$STAGE_COMPLETION"
+    else
+      # Bug fix: loop-agents-qnx - Inline prompt stages default to fixed-n termination
+      [ -z "$stage_completion" ] && stage_completion="fixed-n"
     fi
 
     # Check provider is available (once per stage, not per iteration)
