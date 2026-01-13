@@ -301,6 +301,76 @@ test_context_json_structure() {
   fi
 }
 
+test_pipeline_context_includes_initial_inputs() {
+  local test_dir
+  test_dir=$(create_test_dir "engine-int")
+  local session="initial-inputs-int"
+  local stage_type="initial-loop"
+  local stage_name="bootstrap"
+  local canonical_test_dir
+  canonical_test_dir=$(cd "$test_dir" && pwd)
+
+  # Create stage and fixtures for mock execution
+  _create_test_loop "$test_dir" "$stage_type" "fixed"
+  local fixtures_dir="$test_dir/stages/$stage_type/fixtures"
+  enable_mock_mode "$fixtures_dir"
+
+  # Stub claude CLI so check_provider passes in test env
+  local original_path="$PATH"
+  mkdir -p "$test_dir/bin"
+  cat > "$test_dir/bin/claude" <<'EOF'
+#!/bin/bash
+echo "Mock claude CLI (unused in MOCK_MODE)" >&2
+exit 0
+EOF
+  chmod +x "$test_dir/bin/claude"
+  PATH="$test_dir/bin:$PATH"
+
+  # Create pipeline with initial inputs
+  echo "# Initial plan for integration test" > "$test_dir/initial-plan.md"
+  local pipeline_file="$test_dir/test-pipeline.yaml"
+  cat > "$pipeline_file" <<EOF
+name: initial-inputs-pipeline
+inputs:
+  - ./initial-plan.md
+stages:
+  - name: $stage_name
+    stage: $stage_type
+    runs: 1
+EOF
+
+  local engine_output
+  engine_output=$(
+    cd "$test_dir"
+    export PROJECT_ROOT="$test_dir"
+    export STAGES_DIR="$test_dir/stages"
+    export MOCK_MODE=true
+    export MOCK_DELAY=0
+    export PATH="$test_dir/bin:$PATH"
+    "$SCRIPT_DIR/engine.sh" pipeline "./$(basename "$pipeline_file")" "$session" 2>&1
+  )
+  local exit_code=$?
+  assert_eq "0" "$exit_code" "Pipeline with initial inputs runs successfully (mock mode)"
+
+  local run_dir="$test_dir/.claude/pipeline-runs/$session"
+  local context_file="$run_dir/stage-00-$stage_name/iterations/001/context.json"
+  assert_file_exists "$run_dir/initial-inputs.json" "initial-inputs manifest created in run dir"
+  assert_file_exists "$context_file" "context.json generated for pipeline iteration"
+
+  local count
+  count=$(jq '.inputs.from_initial | length' "$context_file")
+  assert_eq "1" "$count" "context.json records initial input files"
+
+  local recorded
+  recorded=$(jq -r '.inputs.from_initial[0]' "$context_file")
+  local expected_input="$canonical_test_dir/initial-plan.md"
+  assert_eq "$expected_input" "$recorded" "from_initial contains absolute path to seed file"
+
+  PATH="$original_path"
+  disable_mock_mode
+  cleanup_test_dir "$test_dir"
+}
+
 #-------------------------------------------------------------------------------
 # Run Tests
 #-------------------------------------------------------------------------------
@@ -322,5 +392,6 @@ run_test "state initialized correctly" test_state_initialized_correctly
 run_test "iteration marked started" test_iteration_marked_started
 run_test "iteration marked completed" test_iteration_marked_completed
 run_test "context.json structure" test_context_json_structure
+run_test "pipeline context includes initial inputs" test_pipeline_context_includes_initial_inputs
 
 test_summary
