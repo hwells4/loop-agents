@@ -363,3 +363,209 @@ show_resume_info() {
   echo "═══════════════════════════════════════"
   echo ""
 }
+
+#-------------------------------------------------------------------------------
+# Parallel Block Support
+#-------------------------------------------------------------------------------
+
+# Initialize parallel block directory structure
+# Usage: block_dir=$(init_parallel_block "$run_dir" "$stage_idx" "$block_name" "$providers")
+# Returns: Path to block directory
+init_parallel_block() {
+  local run_dir=$1
+  local stage_idx=$2
+  local block_name=$3       # Optional: if empty, auto-generates
+  local providers=$4        # Space-separated list of providers
+
+  # Generate block directory name: parallel-XX-name or parallel-XX if no name
+  local idx_fmt=$(printf '%02d' "$stage_idx")
+  local block_dir_name
+  if [ -n "$block_name" ]; then
+    block_dir_name="parallel-${idx_fmt}-${block_name}"
+  else
+    block_dir_name="parallel-${idx_fmt}"
+  fi
+
+  local block_dir="$run_dir/$block_dir_name"
+  mkdir -p "$block_dir"
+
+  # Create provider directories
+  for provider in $providers; do
+    mkdir -p "$block_dir/providers/$provider"
+  done
+
+  echo "$block_dir"
+}
+
+# Initialize provider state within a parallel block
+# Usage: init_provider_state "$block_dir" "$provider" "$session"
+# Creates: state.json and progress.md for the provider
+init_provider_state() {
+  local block_dir=$1
+  local provider=$2
+  local session=$3
+
+  local provider_dir="$block_dir/providers/$provider"
+  mkdir -p "$provider_dir"
+
+  # Create provider-specific state file
+  local state_file="$provider_dir/state.json"
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  jq -n \
+    --arg provider "$provider" \
+    --arg session "$session" \
+    --arg started "$timestamp" \
+    '{
+      provider: $provider,
+      session: $session,
+      started_at: $started,
+      status: "pending",
+      current_stage: 0,
+      iteration: 0,
+      iteration_completed: 0,
+      stages: []
+    }' > "$state_file"
+
+  # Create provider-specific progress file
+  local progress_file="$provider_dir/progress.md"
+  cat > "$progress_file" << EOF
+# Progress: $session ($provider)
+
+Provider: $provider
+
+---
+
+EOF
+
+  echo "$state_file"
+}
+
+# Write parallel block manifest after all providers complete
+# Usage: write_parallel_manifest "$block_dir" "$block_name" "$block_idx" "$stages" "$providers"
+# Creates: manifest.json with provider outputs
+write_parallel_manifest() {
+  local block_dir=$1
+  local block_name=$2
+  local block_idx=$3
+  local stages=$4          # Space-separated list of stage names
+  local providers=$5       # Space-separated list of providers
+
+  local manifest_file="$block_dir/manifest.json"
+  local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  # Build stages array
+  local stages_json="[]"
+  for stage in $stages; do
+    stages_json=$(echo "$stages_json" | jq --arg s "$stage" '. + [$s]')
+  done
+
+  # Build providers object
+  local providers_json="{}"
+  for provider in $providers; do
+    local provider_dir="$block_dir/providers/$provider"
+    local provider_state="$provider_dir/state.json"
+
+    if [ -f "$provider_state" ]; then
+      # Read provider's stage outputs
+      local provider_stages=$(jq -c '.stages // []' "$provider_state")
+
+      # Build output paths for each stage
+      local provider_data="{}"
+      local stage_idx=0
+      for stage in $stages; do
+        local stage_dir_name="stage-$(printf '%02d' $stage_idx)-${stage}"
+        local stage_dir="$provider_dir/$stage_dir_name"
+
+        if [ -d "$stage_dir" ]; then
+          # Find latest iteration
+          local latest_iter=$(ls -1 "$stage_dir/iterations" 2>/dev/null | sort -n | tail -1)
+          if [ -n "$latest_iter" ]; then
+            local iter_dir="$stage_dir/iterations/$latest_iter"
+            local output_path="$iter_dir/output.md"
+            local status_path="$iter_dir/status.json"
+
+            # Get iteration count and termination reason from provider state
+            local stage_info=$(echo "$provider_stages" | jq --arg name "$stage" '.[] | select(.name == $name)')
+            local iterations=$(echo "$stage_info" | jq -r '.iterations // 1')
+            local term_reason=$(echo "$stage_info" | jq -r '.termination_reason // "unknown"')
+
+            # Build history array of all iteration outputs
+            local history="[]"
+            for iter in $(ls -1 "$stage_dir/iterations" 2>/dev/null | sort -n); do
+              local iter_output="$stage_dir/iterations/$iter/output.md"
+              if [ -f "$iter_output" ]; then
+                history=$(echo "$history" | jq --arg p "$iter_output" '. + [$p]')
+              fi
+            done
+
+            provider_data=$(echo "$provider_data" | jq \
+              --arg stage "$stage" \
+              --arg output "$output_path" \
+              --arg status "$status_path" \
+              --argjson iters "$iterations" \
+              --arg reason "$term_reason" \
+              --argjson history "$history" \
+              '. + {($stage): {latest_output: $output, status: $status, iterations: $iters, termination_reason: $reason, history: $history}}')
+          fi
+        fi
+        stage_idx=$((stage_idx + 1))
+      done
+
+      providers_json=$(echo "$providers_json" | jq --arg p "$provider" --argjson data "$provider_data" '. + {($p): $data}')
+    fi
+  done
+
+  # Write manifest
+  jq -n \
+    --arg name "$block_name" \
+    --argjson index "$block_idx" \
+    --argjson stages "$stages_json" \
+    --argjson providers "$providers_json" \
+    --arg ts "$timestamp" \
+    '{
+      block: {name: $name, index: $index, stages: $stages},
+      providers: $providers,
+      completed_at: $ts
+    }' > "$manifest_file"
+}
+
+# Write parallel block resume hints for crash recovery
+# Usage: write_parallel_resume "$block_dir" "$provider" "$stage_idx" "$iteration" "$status"
+write_parallel_resume() {
+  local block_dir=$1
+  local provider=$2
+  local stage_idx=$3
+  local iteration=$4
+  local status=$5
+
+  local resume_file="$block_dir/resume.json"
+
+  # Create or update resume file
+  if [ ! -f "$resume_file" ]; then
+    echo "{}" > "$resume_file"
+  fi
+
+  jq --arg provider "$provider" \
+     --argjson stage "$stage_idx" \
+     --argjson iter "$iteration" \
+     --arg status "$status" \
+     '. + {($provider): {stage_index: $stage, iteration: $iter, status: $status}}' \
+     "$resume_file" > "$resume_file.tmp" && mv "$resume_file.tmp" "$resume_file"
+}
+
+# Get parallel block resume hint for a provider
+# Usage: get_parallel_resume_hint "$block_dir" "$provider"
+# Returns: JSON object with stage_index, iteration, status
+get_parallel_resume_hint() {
+  local block_dir=$1
+  local provider=$2
+
+  local resume_file="$block_dir/resume.json"
+
+  if [ -f "$resume_file" ]; then
+    jq -c --arg p "$provider" '.[$p] // {stage_index: 0, iteration: 1, status: "pending"}' "$resume_file"
+  else
+    echo '{"stage_index": 0, "iteration": 1, "status": "pending"}'
+  fi
+}
