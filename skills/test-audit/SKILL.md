@@ -1,18 +1,32 @@
 ---
 name: test-audit
-description: Audit test suite for quality issues, anti-patterns, and AI-generated test smells. Use when reviewing tests, after AI generates tests, or when test suite feels unreliable.
+description: Comprehensive test suite audit for quality issues, anti-patterns, AI-generated test smells, test rot, CI/CD failures, and test data problems. Use when reviewing tests, after AI generates tests, when tests feel unreliable, or for periodic health checks.
 ---
 
 ## What This Skill Does
 
 Analyzes existing tests to find:
+
+**Individual Test Issues:**
 1. **AI hardcoding** - Tests that assert exact outputs without understanding why
 2. **Mock/reality mismatch** - Mocks that don't match actual implementations
 3. **Test anti-patterns** - The Liar, The Giant, The Mockery, etc.
 4. **Fixture problems** - Unrealistic data, magic values, missing edge cases
 5. **Flaky test indicators** - Time-dependent, order-dependent, race conditions
 
-This is NOT about coverage. It's about whether your existing tests are actually trustworthy.
+**Structural Issues:**
+6. **Test layer gaps** - Green units, dead system; missing integration coverage
+7. **Test rot** - Obsolete tests, abandoned code, tests nobody understands
+8. **CI/CD failures** - Works locally, fails in CI; environment drift
+
+**Test Data Issues:**
+9. **Data smells** - PII in fixtures, state leakage, shared mutable state
+10. **Database isolation** - Transaction leaks, cleanup failures, parallel conflicts
+
+**Suite Health:**
+11. **Test debt** - Signs the suite is becoming a liability rather than an asset
+
+This is NOT just about coverage. It's about whether your tests are trustworthy, maintainable, and actually catching bugs.
 
 ## When to Use
 
@@ -341,6 +355,340 @@ find tests/integration -name "*.test.*" | wc -l  # Integration tests
 # If integration > 50% of total, investigate
 ```
 
+### 10. Test Rot (Obsolete Tests)
+
+Tests that no longer serve their purpose but remain in the codebase, creating maintenance burden and false confidence.
+
+**Pattern A: Abandoned Tests**
+```javascript
+// RED FLAG: Tests for features that no longer exist
+describe("LegacyPaymentGateway", () => {
+  // This gateway was replaced 6 months ago
+  // Tests still run and pass, providing zero value
+});
+
+// RED FLAG: Skipped tests with no explanation
+it.skip("handles edge case");
+xit("validates input");
+// How long has this been skipped? Why?
+```
+
+**Pattern B: Tests Nobody Understands**
+```javascript
+// RED FLAG: Cryptic test with no context
+it("returns 42", () => {
+  expect(calculate(data)).toBe(42);
+  // Why 42? What is this testing? Nobody knows.
+});
+
+// RED FLAG: Test name doesn't match behavior
+it("validates user", () => {
+  // Actually tests email formatting, not user validation
+  expect(formatEmail("TEST")).toBe("test");
+});
+```
+
+**Pattern C: Always-Pass Tests**
+```javascript
+// RED FLAG: Test that cannot fail
+it("handles data", () => {
+  const result = process(data) || defaultValue;
+  expect(result).toBeDefined(); // Always true!
+});
+
+// RED FLAG: Catch-all that swallows failures
+it("processes without error", async () => {
+  try {
+    await processData();
+    expect(true).toBe(true);
+  } catch {
+    expect(true).toBe(true); // Passes even on error!
+  }
+});
+```
+
+**Detection:**
+```bash
+# Find tests not modified in 90+ days
+find tests -name "*.test.*" -mtime +90
+
+# Find skipped tests
+grep -r "\.skip\|xit\|xdescribe\|@Disabled\|@Ignore" tests/
+
+# Find tests with TODO/FIXME
+grep -r "TODO\|FIXME\|HACK" tests/
+
+# Check git blame for ancient tests
+git log --oneline --since="6 months ago" -- tests/ | wc -l
+# If very few commits, tests may be rotting
+```
+
+**Questions to ask:**
+- When was this test last modified?
+- Does anyone know what this test is supposed to verify?
+- If this test was deleted, would anyone notice?
+- Is the feature this tests still in the product?
+
+### 11. CI/CD Environment Issues
+
+Tests that pass locally but fail in CI, or vice versa.
+
+**Pattern A: Environment Drift**
+```javascript
+// RED FLAG: OS-specific paths
+const configPath = "C:\\Users\\dev\\config.json";
+const configPath = "/Users/dev/config.json";
+// Fails on Linux CI runners
+
+// RED FLAG: Timezone assumptions
+expect(formatDate(date)).toBe("1/15/2025");
+// Fails when CI runs in UTC
+
+// RED FLAG: Locale-dependent
+expect(formatCurrency(1000)).toBe("$1,000.00");
+// Fails in non-US locales
+```
+
+**Pattern B: Resource Assumptions**
+```javascript
+// RED FLAG: Hardcoded ports
+const server = app.listen(3000);
+// Fails if port in use on CI
+
+// RED FLAG: File system assumptions
+fs.writeFileSync("./temp/output.txt", data);
+// Fails if ./temp doesn't exist in CI
+
+// RED FLAG: Memory-intensive operations
+const hugeArray = new Array(10_000_000).fill(0);
+// OOM on resource-constrained CI runners
+```
+
+**Pattern C: Timing Issues**
+```javascript
+// RED FLAG: Tight timeouts
+await waitFor(() => element.isVisible(), { timeout: 100 });
+// CI is slower, needs more time
+
+// RED FLAG: Sleep-based synchronization
+await sleep(500);
+expect(result).toBe("done");
+// Works locally (fast), fails in CI (slow)
+```
+
+**Pattern D: Missing Dependencies**
+```javascript
+// RED FLAG: Assuming global tools
+exec("convert image.png output.jpg");  // ImageMagick
+exec("wkhtmltopdf page.html output.pdf");  // wkhtmltopdf
+// Not installed in CI
+
+// RED FLAG: Assuming services
+const redis = new Redis("localhost:6379");
+// No Redis in CI environment
+```
+
+**Detection checklist:**
+- [ ] Any hardcoded file paths?
+- [ ] Any hardcoded ports?
+- [ ] Any timezone-sensitive assertions?
+- [ ] Any locale-sensitive formatting?
+- [ ] Any tight timeouts (<1s)?
+- [ ] Any external tool dependencies?
+- [ ] Any assumptions about available services?
+
+### 12. Test Data Smells
+
+Problems with how test data is created, managed, and cleaned up.
+
+**Pattern A: PII in Fixtures (Compliance Risk)**
+```javascript
+// RED FLAG: Real-looking personal data
+const testUser = {
+  name: "John Smith",  // Could be a real person
+  email: "john.smith@gmail.com",  // Could be real
+  ssn: "123-45-6789",  // Valid SSN format
+  phone: "555-123-4567"
+};
+
+// BETTER: Obviously fake data
+const testUser = {
+  name: "Test User 001",
+  email: "test-001@test.invalid",
+  ssn: "000-00-0000",  // Invalid format
+  phone: "555-000-0000"  // Reserved test prefix
+};
+
+// BEST: Generated fake data
+const testUser = {
+  name: faker.person.fullName(),
+  email: faker.internet.email({ provider: 'test.invalid' }),
+  // etc.
+};
+```
+
+**Pattern B: Shared Mutable State**
+```javascript
+// RED FLAG: Global state modified by tests
+let globalCounter = 0;
+
+it("test 1", () => {
+  globalCounter++;
+  expect(globalCounter).toBe(1);
+});
+
+it("test 2", () => {
+  expect(globalCounter).toBe(0);  // Fails! State leaked from test 1
+});
+
+// RED FLAG: Shared fixture mutation
+const sharedUser = { name: "Test", permissions: [] };
+
+it("admin test", () => {
+  sharedUser.permissions.push("admin");  // Mutates shared object!
+});
+
+it("user test", () => {
+  expect(sharedUser.permissions).toEqual([]);  // Fails!
+});
+```
+
+**Pattern C: Database State Leakage**
+```javascript
+// RED FLAG: No cleanup between tests
+it("creates user", async () => {
+  await db.users.create({ email: "test@example.com" });
+  // No cleanup!
+});
+
+it("checks unique email", async () => {
+  // Fails because user from previous test still exists
+  await expect(
+    db.users.create({ email: "test@example.com" })
+  ).rejects.toThrow("duplicate");
+});
+
+// RED FLAG: Order-dependent database tests
+it("first: seed data", async () => {
+  await seedDatabase();
+});
+
+it("second: query data", async () => {
+  const results = await db.query("...");
+  expect(results).toHaveLength(10);  // Depends on first test!
+});
+```
+
+**Pattern D: Fixtures Too Minimal or Too Maximal**
+```javascript
+// RED FLAG: Minimal fixture misses real-world complexity
+const order = { total: 100 };
+// Real orders have: items, shipping, tax, discounts, user, timestamps...
+
+// RED FLAG: Maximal fixture obscures test intent
+const order = {
+  id: "ord-123",
+  userId: "user-456",
+  items: [{ id: "item-1", name: "Widget", price: 50, quantity: 2 }],
+  shipping: { method: "express", cost: 15, address: {...} },
+  billing: { card: {...}, address: {...} },
+  discounts: [{ code: "SAVE10", amount: 10 }],
+  tax: 8.50,
+  total: 113.50,
+  status: "pending",
+  createdAt: "2025-01-15T10:00:00Z",
+  updatedAt: "2025-01-15T10:00:00Z",
+  // ... 20 more fields
+};
+// What is this test actually about? Hard to tell.
+
+// GOOD: Factory with relevant overrides
+const order = createOrder({ discounts: [tenPercentOff] });
+// Clear: this test is about discount handling
+```
+
+**Detection:**
+```bash
+# Find potential PII patterns
+grep -rE "[0-9]{3}-[0-9]{2}-[0-9]{4}" tests/  # SSN pattern
+grep -rE "[a-z]+@(gmail|yahoo|hotmail)" tests/  # Real email providers
+
+# Find global state
+grep -r "^let \|^var " tests/  # Top-level mutable variables
+
+# Find missing cleanup
+grep -L "afterEach\|teardown\|cleanup" tests/**/*.test.*
+```
+
+### 13. Test Debt Indicators (Suite Becoming a Liability)
+
+Signs that your test suite is costing more than it's worth.
+
+**Warning Sign A: Ignored Failures**
+```
+Team behavior:
+- "Just re-run it, that test is flaky"
+- "Ignore the red, it's always like that"
+- "We'll fix that test later" (never happens)
+- Tests commented out instead of fixed
+```
+
+**Warning Sign B: Velocity Drain**
+```
+Symptoms:
+- A one-line change requires updating 20+ tests
+- Developers avoid certain areas because "tests are a nightmare"
+- More time debugging tests than debugging code
+- Tests break on unrelated changes
+```
+
+**Warning Sign C: False Confidence**
+```
+Symptoms:
+- Tests pass but bugs reach production
+- High coverage numbers but users still find bugs
+- "All tests pass" but demo fails
+- Tests pass on feature branch, fail on main
+```
+
+**Warning Sign D: Abandonment**
+```
+Symptoms:
+- Tests marked as skip/pending for months
+- Test files with no recent git commits
+- Entire test directories nobody runs
+- "I don't know what that test does"
+```
+
+**Quantitative Detection:**
+```bash
+# Flakiness rate (should be < 1%)
+# Track: failures that pass on retry / total runs
+
+# Test modification frequency
+git log --since="3 months ago" --name-only -- tests/ | sort | uniq -c | sort -rn
+# Tests modified frequently may be brittle
+
+# Skipped test count
+grep -rc "\.skip\|xit\|xdescribe" tests/ | awk -F: '$2>0'
+
+# Test-to-code ratio
+echo "Test lines: $(find tests -name '*.test.*' -exec wc -l {} + | tail -1)"
+echo "Source lines: $(find src -name '*.ts' -exec wc -l {} + | tail -1)"
+# Healthy ratio: 0.8:1 to 1.4:1
+```
+
+**Questions to diagnose test debt:**
+1. How long does the test suite take to run?
+   - Unit tests > 5 min → too slow
+   - Full suite > 30 min → problematic
+2. How often do tests fail for non-bug reasons?
+   - > 5% flakiness → significant debt
+3. When a test fails, how long to diagnose?
+   - > 10 min → tests not providing value
+4. How often are tests updated vs code?
+   - Tests rarely updated → likely rotting
+
 ## Process
 
 ### 1. Identify Scope
@@ -450,18 +798,39 @@ expect(token).toHaveLength(9);
 
 ## Success Criteria
 
+**Individual Test Quality:**
 - [ ] Identified AI hardcoding patterns
 - [ ] Cross-referenced mocks against real implementations
 - [ ] Flagged tests without meaningful assertions
 - [ ] Noted fixture quality issues
-- [ ] **Analyzed test layer balance (unit vs integration vs e2e)**
-- [ ] **Identified orphan functions (tested but never called)**
-- [ ] **Verified critical paths have integration coverage**
+- [ ] Identified flaky test patterns
+
+**Structural Analysis:**
+- [ ] Analyzed test layer balance (unit vs integration vs e2e)
+- [ ] Identified orphan functions (tested but never called)
+- [ ] Verified critical paths have integration coverage
+- [ ] Found test rot (obsolete, abandoned, skipped tests)
+
+**Environment & Data:**
+- [ ] Checked for CI/CD environment issues
+- [ ] Audited test data for PII and compliance risks
+- [ ] Identified state leakage between tests
+- [ ] Verified database cleanup patterns
+
+**Suite Health:**
+- [ ] Assessed overall test debt level
+- [ ] Identified signs of suite becoming a liability
+- [ ] Measured key health metrics (flakiness, execution time)
+
+**Deliverables:**
 - [ ] Provided actionable fix suggestions
 - [ ] Report organized by severity
+- [ ] Prioritized recommendations
 
 ## References
 
 - `references/anti-patterns.md` - Detailed anti-pattern detection heuristics
 - `references/quick-checklist.md` - Rapid audit checklist
 - `references/layer-analysis.md` - Test layer gap detection
+- `references/ci-cd-issues.md` - CI/CD environment problem patterns
+- `references/test-data.md` - Test data management patterns
