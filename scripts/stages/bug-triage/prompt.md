@@ -4,6 +4,8 @@ Read context from: ${CTX}
 Progress file: ${PROGRESS}
 Iteration: ${ITERATION}
 
+${CONTEXT}
+
 You are here to transform a raw list of discovered bugs into elegant action. Your job is to see patterns, find consolidations, and determine what's actually worth fixing versus what adds complexity for negligible gain.
 
 This is not a checklist task. You have full latitude to explore, investigate, and use your intelligence as you see fit. Trust your instincts. Follow threads that interest you. Go deep where depth is warranted.
@@ -13,6 +15,30 @@ This is not a checklist task. You have full latitude to explore, investigate, an
 Read the progress file to see all the bugs that were discovered:
 ```bash
 cat ${PROGRESS}
+```
+
+### Inputs from Previous Stages
+
+If this stage is part of a multi-stage pipeline, you may have inputs from previous stages or initial files:
+
+```bash
+# Read initial inputs (CLI --input files)
+jq -r '.inputs.from_initial[]? // empty' ${CTX} | while read file; do
+  echo "Reading: $file"
+  cat "$file"
+done
+
+# Read outputs from previous stages
+jq -r '.inputs.from_stage | to_entries[]? | .value[]? // empty' ${CTX} | while read file; do
+  echo "Reading previous stage output: $file"
+  cat "$file"
+done
+
+# Read outputs from parallel blocks (if applicable)
+jq -r '.inputs.from_parallel | to_entries[]? | .value[]? // empty' ${CTX} | while read file; do
+  echo "Reading parallel output: $file"
+  cat "$file"
+done
 ```
 
 ## Exploration

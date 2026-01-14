@@ -50,10 +50,22 @@ Unlike `/sessions` which shows status snapshots, `/monitor` is a hands-on debugg
 .claude/pipeline-runs/{session}/
 ├── state.json                            # Valid JSON? Required fields?
 ├── progress-{session}.md                 # Growing?
-└── stage-NN-{stage}/iterations/NNN/
-    ├── context.json                      # Created?
-    ├── output.md                         # Has content?
-    └── status.json                       # Valid decision?
+├── stage-NN-{stage}/iterations/NNN/
+│   ├── context.json                      # Created? Has inputs/commands?
+│   ├── output.md                         # Has content?
+│   └── status.json                       # Valid decision?
+└── parallel-NN-{block}/                  # Parallel block (if present)
+    ├── manifest.json                     # Aggregated outputs
+    ├── resume.json                       # Per-provider recovery hints
+    └── providers/
+        ├── claude/
+        │   ├── progress.md               # Provider-isolated progress
+        │   ├── state.json                # Provider-specific state
+        │   └── stage-NN-{stage}/iterations/NNN/
+        └── codex/
+            ├── progress.md
+            ├── state.json
+            └── stage-NN-{stage}/iterations/NNN/
 ```
 
 ---

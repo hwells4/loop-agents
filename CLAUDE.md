@@ -146,7 +146,35 @@ Stages can use different AI agent providers. The default is Claude Code.
 | Claude Code | `claude`, `claude-code`, `anthropic` | `claude` | opus | `--dangerously-skip-permissions` |
 | Codex | `codex`, `openai` | `codex` | gpt-5.2-codex | `--dangerously-bypass-approvals-and-sandbox` |
 
-**Codex reasoning effort:** Set via `CODEX_REASONING_EFFORT` env var (minimal, low, medium, high). Default: `high`.
+**Claude Models:**
+
+| Model | Aliases | Description |
+|-------|---------|-------------|
+| `opus` | `claude-opus`, `opus-4`, `opus-4.5` | Most capable, best for complex tasks |
+| `sonnet` | `claude-sonnet`, `sonnet-4` | Balanced capability and speed |
+| `haiku` | `claude-haiku` | Fastest, best for simple tasks |
+
+**Codex Models:**
+
+| Model | Description |
+|-------|-------------|
+| `gpt-5.2-codex` | Default, most capable Codex model |
+| `gpt-5-codex` | Previous generation |
+| `gpt-5.1-codex-max` | Frontier agentic model |
+| `gpt-5.1-codex-mini` | Cost-effective model |
+
+
+**Codex reasoning effort:** Set via `CODEX_REASONING_EFFORT` env var. Default: `high`.
+
+| Level | Use Case |
+|-------|----------|
+| `minimal` | Simple tasks, fastest |
+| `low` | Straightforward code |
+| `medium` | **Recommended daily driver** |
+| `high` | Complex tasks (default) |
+| `xhigh` | Maximum reasoning, slowest |
+
+**Guidance:** Reserve `xhigh` for 1-2 iteration tasks (plan synthesis, task creation). For 5+ iteration loops, use `medium` or `high`—xhigh cost/latency adds up fast.
 
 **Configuration:**
 ```yaml
@@ -318,6 +346,8 @@ On resume, completed providers are skipped; only failed/incomplete providers res
 | `${STATUS}` | Path where agent writes `status.json` |
 | `${ITERATION}` | 1-based iteration number |
 | `${SESSION_NAME}` | Session name |
+| `${CONTEXT}` | Injected context text (from CLI `--context` or env `CLAUDE_PIPELINE_CONTEXT`) |
+| `${OUTPUT}` | Path to write output (multi-stage pipelines, set via `output_path` in stage.yaml) |
 
 ### Legacy Variables (Deprecated, still work)
 
@@ -326,7 +356,174 @@ On resume, completed providers are skipped; only failed/incomplete providers res
 | `${SESSION}` | Same as `${SESSION_NAME}` |
 | `${INDEX}` | 0-based iteration index |
 | `${PROGRESS_FILE}` | Same as `${PROGRESS}` |
-| `${OUTPUT}` | Path to write output (multi-stage pipelines) |
+| `${OUTPUT_PATH}` | Same as `${OUTPUT}` (from `output_path` in stage.yaml) |
+
+## Input System
+
+Agents receive inputs through `context.json`, which contains three input sources:
+
+### Input Sources
+
+**1. Initial Inputs** (`inputs.from_initial`): Files passed via CLI `--input` flags
+```bash
+./scripts/run.sh ralph auth 25 --input=docs/plan.md --input=requirements.txt
+```
+
+**2. Previous Stage Outputs** (`inputs.from_stage`): Outputs from earlier stages in multi-stage pipelines
+```yaml
+# In pipeline.yaml
+stages:
+  - name: plan
+    stage: improve-plan
+    runs: 5
+  - name: implement
+    stage: ralph
+    runs: 25
+    inputs:
+      from: plan        # References "plan" stage by name
+      select: latest    # "latest" (default) or "history" (all iterations)
+```
+
+**3. Parallel Block Outputs** (`inputs.from_parallel`): Outputs from multiple providers running in parallel
+```yaml
+# In pipeline.yaml
+stages:
+  - name: dual-refine
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - name: iterate
+          stage: improve-plan
+  - name: synthesize
+    stage: elegance
+    inputs:
+      from_parallel: iterate  # Gets outputs from both providers
+```
+
+### Reading Inputs in Prompts
+
+Agents access inputs by reading `context.json`:
+
+```bash
+# Read initial inputs (CLI --input files)
+jq -r '.inputs.from_initial[]' ${CTX} | while read file; do
+  echo "Reading: $file"
+  cat "$file"
+done
+
+# Read previous stage outputs
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} | xargs cat
+
+# Read parallel block outputs (all providers)
+jq -r '.inputs.from_parallel | to_entries[] | .value[]' ${CTX} | xargs cat
+
+# Filter parallel outputs by provider
+jq -r '.inputs.from_parallel.claude[]' ${CTX} | xargs cat
+```
+
+### Complete context.json Structure
+
+```json
+{
+  "session": "auth",
+  "pipeline": "multi-stage",
+  "stage": {
+    "id": "implement",
+    "index": 1,
+    "template": "ralph"
+  },
+  "iteration": 3,
+  "paths": {
+    "session_dir": ".claude/pipeline-runs/auth",
+    "stage_dir": ".claude/pipeline-runs/auth/stage-01-implement",
+    "progress": ".claude/pipeline-runs/auth/progress-auth.md",
+    "output": ".claude/pipeline-runs/auth/stage-01-implement/output.md",
+    "status": ".claude/pipeline-runs/auth/stage-01-implement/iterations/003/status.json"
+  },
+  "inputs": {
+    "from_initial": [
+      "docs/plans/auth-plan.md",
+      "requirements.txt"
+    ],
+    "from_stage": {
+      "plan": [
+        ".claude/pipeline-runs/auth/stage-00-plan/iterations/005/output.md"
+      ]
+    },
+    "from_parallel": {
+      "claude": [
+        ".claude/pipeline-runs/auth/parallel-01-dual/providers/claude/stage-00-iterate/iterations/003/output.md"
+      ],
+      "codex": [
+        ".claude/pipeline-runs/auth/parallel-01-dual/providers/codex/stage-00-iterate/iterations/002/output.md"
+      ]
+    }
+  },
+  "limits": {
+    "max_iterations": 25,
+    "remaining_seconds": -1
+  },
+  "commands": {
+    "test": "npm test",
+    "lint": "npm run lint",
+    "format": "npm run format",
+    "types": "npm run typecheck"
+  }
+}
+```
+
+## Commands Passthrough
+
+Pipelines can pass project-specific commands to agents via `context.json`. This allows generic stage prompts to work across different projects without hardcoding tool invocations.
+
+### Defining Commands
+
+Commands are defined at the pipeline or stage level:
+
+```yaml
+# In pipeline.yaml or stage.yaml
+commands:
+  test: npm test
+  lint: npm run lint
+  format: npm run format
+  types: npm run typecheck
+  build: npm run build
+```
+
+Or via CLI override:
+```bash
+./scripts/run.sh ralph auth 25 \
+  --command=test="pytest tests/" \
+  --command=lint="ruff check ."
+```
+
+### Using Commands in Prompts
+
+Agents read commands from `context.json` and use them instead of hardcoded tool invocations:
+
+```bash
+# Read the test command (fallback to generic if not provided)
+TEST_CMD=$(jq -r '.commands.test // "npm test"' ${CTX})
+
+# Run tests
+$TEST_CMD
+
+# Check if a specific command is configured
+if jq -e '.commands.format' ${CTX} > /dev/null; then
+  FORMAT_CMD=$(jq -r '.commands.format' ${CTX})
+  echo "Running formatter: $FORMAT_CMD"
+  $FORMAT_CMD
+fi
+```
+
+**Common command keys:**
+- `test` - Run test suite
+- `lint` - Run linter
+- `format` - Format code
+- `types` - Type checking
+- `build` - Build project
+
+This pattern allows stages like `ralph` and `test-review` to work across JavaScript, Python, Ruby, and other ecosystems without modification.
 
 ## Creating a New Stage
 
@@ -468,7 +665,7 @@ rm .claude/locks/{session}.lock
 CLI flags take precedence over env vars:
 ```bash
 # CLI flags (highest priority)
-./scripts/run.sh ralph auth 25 --provider=codex --model=o3
+./scripts/run.sh ralph auth 25 --provider=codex --model=gpt-5.1-codex-max
 
 # Inject context into the prompt (useful for agents)
 ./scripts/run.sh ralph auth 25 --context="Read docs/plan.md before starting"

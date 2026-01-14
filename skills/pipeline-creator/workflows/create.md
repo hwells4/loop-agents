@@ -30,7 +30,8 @@ If user describes inline, parse their YAML directly.
 Ensure spec contains:
 - `name`: Pipeline name
 - `stages`: Array of stage definitions
-- Each stage has: `name`, `description`, `exists`, `termination`, `model`
+- Each stage has: `name`, `description`, `exists`, `termination`
+- Optional: `provider` (claude or codex), `model` (provider-specific), `context`, `commands`, `inputs`
 
 If invalid, report what's missing and stop.
 
@@ -71,11 +72,22 @@ For each new stage, extract:
 ```yaml
 name: {stage-name}
 description: {stage-description}
+provider: {claude|codex}  # optional, defaults to claude
+model: {opus|sonnet|haiku|o3|o3-mini|o4-mini|gpt-5.2-codex|gpt-5-codex}  # optional, provider-specific
 termination:
   type: {queue|judgment|fixed}
   min_iterations: {N}
   consensus: {N}
-model: {opus|sonnet|haiku}
+context: {text}  # optional, injected into ${CONTEXT} variable
+commands:  # optional, project-specific validation commands
+  test: {command}
+  lint: {command}
+  format: {command}
+  types: {command}
+  build: {command}
+inputs:  # optional, for multi-stage pipelines
+  from: {previous-stage-name}
+  select: {latest|all}
 ```
 
 ### Spawn Agents (Parallel)
@@ -91,11 +103,22 @@ Create stage with specification:
 
 name: {stage-name}
 description: {stage-description}
+provider: {claude|codex}  # if specified
+model: {opus|sonnet|haiku|o3|o3-mini|o4-mini|gpt-5.2-codex|gpt-5-codex}  # if specified
 termination:
   type: {queue|judgment|fixed}
   min_iterations: {N}
   consensus: {N}
-model: {opus|sonnet|haiku}
+context: {text}  # if specified
+commands:  # if specified
+  test: {command}
+  lint: {command}
+  format: {command}
+  types: {command}
+  build: {command}
+inputs:  # if specified
+  from: {previous-stage-name}
+  select: {latest|all}
 """
 )
 ```

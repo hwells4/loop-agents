@@ -4,18 +4,41 @@ Read context from: ${CTX}
 Progress file: ${PROGRESS}
 Iteration: ${ITERATION}
 
+${CONTEXT}
+
 ## Your Task
 
 You are a senior architect reviewing and improving a plan. Make it better.
 
 ### Step 1: Load Context
 
-Read the progress file and find the plan:
+Read the progress file:
 ```bash
 cat ${PROGRESS}
 ```
 
-Find plan files:
+**Check for input files from context.json:**
+```bash
+# Read initial inputs (from --input CLI flag)
+jq -r '.inputs.from_initial[]' ${CTX} 2>/dev/null | while read file; do
+  echo "Reading input: $file"
+  cat "$file"
+done
+
+# Read previous stage outputs (if this is part of a multi-stage pipeline)
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "Reading from previous stage: $file"
+  cat "$file"
+done
+
+# Read parallel block outputs (if this follows a parallel stage)
+jq -r '.inputs.from_parallel | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "Reading from parallel block: $file"
+  cat "$file"
+done
+```
+
+If no inputs were provided, find plan files in the repo:
 ```bash
 ls -la docs/*.md 2>/dev/null
 ls -la *.md 2>/dev/null | grep -i plan

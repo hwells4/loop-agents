@@ -42,6 +42,25 @@ Before proceeding, develop a clear mental model of:
    - State changes?
    - Handoff to next stage?
 
+5. **What inputs will agents need?**
+   - Initial inputs from CLI (`--input`)?
+   - Outputs from previous stages (`from_stage`)?
+   - Outputs from parallel providers (`from_parallel`)?
+
+6. **What provider and model should be used?**
+   - Claude (opus/sonnet/haiku) for general work?
+   - Codex (o3/o3-mini/o4-mini/gpt-5.2-codex) for reasoning or comparison?
+   - Multiple providers in parallel for consensus?
+
+7. **What commands does the project use?**
+   - Test command (pytest, npm test, etc.)?
+   - Lint, format, types, build commands?
+   - Should agents read these from `context.json` commands passthrough?
+
+8. **Will context injection help focus the work?**
+   - Should stages accept `--context` for specific guidance?
+   - Use `${CONTEXT}` placeholder in prompt templates?
+
 ### When to Proceed
 
 Proceed when you genuinely understand—not when you've asked N questions.
@@ -91,8 +110,26 @@ Before spawning, synthesize your understanding into a requirements summary:
 - Stop when: [condition]
 - Estimated iterations: [rough guess]
 
+**Inputs:**
+- Initial inputs: [files from CLI --input, or none]
+- Stage inputs: [outputs from previous stages, or none]
+- Parallel inputs: [outputs from parallel providers, or none]
+
+**Provider/Model:**
+- Provider: [claude or codex or both in parallel]
+- Model: [opus/sonnet/haiku or o3/o3-mini/o4-mini/gpt-5.2-codex]
+- Reasoning: [why this provider/model combo]
+
+**Commands:**
+- Test: [project test command, or generic]
+- Lint/format/types/build: [if applicable]
+- Should agents read from context.json commands: [yes/no]
+
+**Context injection:**
+- Uses ${CONTEXT}: [yes/no]
+- Example context: [what kind of guidance would be useful]
+
 **Constraints:**
-- Model preference: [opus/sonnet/haiku or inferred]
 - Existing stages to reuse: [list or none]
 - Special requirements: [any mentioned]
 ```
@@ -141,16 +178,35 @@ Present the architecture clearly. Use formatting to make it scannable.
 
 **Name:** {name}
 **Type:** {single-stage | multi-stage}
+**Provider:** {claude | codex | both in parallel}
+**Model:** {opus/sonnet/haiku or o3/o3-mini/o4-mini/gpt-5.2-codex}
 
 ### Stages
 
-| Stage | Termination | Model | Description |
-|-------|-------------|-------|-------------|
-| {name} | {type} | {model} | {description} |
+| Stage | Termination | Provider | Model | Inputs | Description |
+|-------|-------------|----------|-------|--------|-------------|
+| {name} | {type} | {provider} | {model} | {from_initial/from_stage/from_parallel} | {description} |
+
+### Input Flow
+
+- **Initial**: {files passed via --input, or none}
+- **Stage-to-stage**: {outputs wired between stages, or none}
+- **Parallel**: {outputs from multiple providers, or none}
+
+### Commands Passthrough
+
+- **Test**: {project test command, or generic}
+- **Lint/format/types/build**: {if applicable}
+- Agents read from `context.json` commands: {yes/no}
+
+### Context Injection
+
+- Uses `${CONTEXT}` placeholder: {yes/no}
+- Example usage: `--context="Focus on error handling"`
 
 ### How It Works
 
-{brief explanation of the flow}
+{brief explanation of the flow, including how inputs/commands/context are used}
 
 ### Existing Stages Reused
 

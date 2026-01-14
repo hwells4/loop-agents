@@ -47,17 +47,24 @@ Stages connect via inputs:
 ```yaml
 stages:
   - name: plan-stage
-    loop: improve-plan
+    stage: improve-plan
     runs: 5
 
   - name: bead-stage
-    loop: refine-tasks
+    stage: refine-tasks
     runs: 5
     inputs:
       from: plan-stage
 ```
 
-The `${INPUTS}` variable in the second stage contains outputs from the first.
+The second stage reads outputs via `context.json`:
+
+```bash
+# In the prompt template for bead-stage
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} | while read output_file; do
+  cat "$output_file"
+done
+```
 
 ### "What makes a good prompt template?"
 

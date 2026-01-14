@@ -13,17 +13,8 @@ Use these in all new stage prompts.
 | `${PROGRESS}` | Path | Path to progress file (accumulated context) |
 | `${ITERATION}` | Number | Current iteration (1-based) |
 | `${SESSION_NAME}` | String | Session identifier |
-| `${CONTEXT}` | Text | Optional stage-specific context (from stage.yaml or pipeline.yaml) |
-
-## Multi-Stage Variables
-
-Available when running as part of a multi-stage pipeline.
-
-| Variable | Type | Description |
-|----------|------|-------------|
-| `${INPUTS}` | Path | Previous stage's output directory |
-| `${INPUTS.stage-name}` | Path | Named stage's output (when multiple inputs) |
-| `${OUTPUT}` | Path | Path to write this stage's output |
+| `${CONTEXT}` | Text | Optional context injection (from CLI/env/config) |
+| `${OUTPUT}` | Path | Path to write output (multi-stage pipelines) |
 
 ## Legacy Variables (Deprecated)
 
@@ -35,36 +26,82 @@ Still work for backwards compatibility but prefer V3 variables.
 | `${INDEX}` | `${ITERATION} - 1` | 0-based vs 1-based |
 | `${PROGRESS_FILE}` | `${PROGRESS}` | Shortened |
 
+**Note:** `${INPUTS}` is deprecated. Use `context.json` inputs object instead.
+
 ## context.json Structure
 
 Available at `${CTX}`:
 
 ```json
 {
-  "session": {
-    "name": "auth-refactor",
-    "type": "work",
-    "started_at": "2026-01-12T10:00:00Z"
+  "session": "auth-refactor",
+  "pipeline": "refine",
+  "stage": {
+    "id": "improve-plan",
+    "index": 0,
+    "template": "improve-plan"
   },
-  "iteration": {
-    "current": 5,
-    "max": 25,
-    "started_at": "2026-01-12T10:25:00Z"
-  },
+  "iteration": 5,
   "paths": {
-    "progress": ".claude/pipeline-runs/auth/progress-auth.md",
-    "status": ".claude/pipeline-runs/auth/iterations/005/status.json",
-    "output": ".claude/pipeline-runs/auth/iterations/005/output.md"
+    "session_dir": ".claude/pipeline-runs/auth-refactor",
+    "stage_dir": ".claude/pipeline-runs/auth-refactor/stage-00-improve-plan",
+    "progress": ".claude/pipeline-runs/auth-refactor/progress-auth-refactor.md",
+    "status": ".claude/pipeline-runs/auth-refactor/stage-00-improve-plan/iterations/005/status.json",
+    "output": ".claude/pipeline-runs/auth-refactor/stage-00-improve-plan/iterations/005/output.md"
   },
-  "termination": {
-    "type": "queue",
-    "config": {}
+  "inputs": {
+    "from_initial": ["docs/plans/auth.md"],
+    "from_stage": {
+      "plan": [".claude/pipeline-runs/auth-refactor/stage-00-plan/iterations/003/output.md"]
+    },
+    "from_parallel": {
+      "claude": ["parallel-01-review/providers/claude/iterations/001/output.md"],
+      "codex": ["parallel-01-review/providers/codex/iterations/001/output.md"]
+    },
+    "from_previous_iterations": [
+      "iterations/001/output.md",
+      "iterations/002/output.md"
+    ]
   },
-  "history": [
-    {"iteration": 1, "decision": "continue"},
-    {"iteration": 2, "decision": "continue"}
-  ]
+  "commands": {
+    "test": "npm test",
+    "lint": "npm run lint",
+    "format": "npm run format",
+    "types": "npm run typecheck"
+  },
+  "limits": {
+    "max_iterations": 25,
+    "remaining_seconds": -1
+  }
 }
+```
+
+### Input Types
+
+| Field | Description |
+|-------|-------------|
+| `from_initial` | Files passed via `--input` CLI flag |
+| `from_stage` | Outputs from named previous stages |
+| `from_parallel` | Outputs from parallel block providers |
+| `from_previous_iterations` | This stage's prior iteration outputs |
+
+### Commands Passthrough
+
+The `commands` object passes project-specific commands from pipeline config:
+
+```yaml
+# In pipeline.yaml
+commands:
+  test: "npm test"
+  lint: "npm run lint"
+  format: "npm run format"
+  types: "npm run typecheck"
+```
+
+Agents access via:
+```bash
+TEST_CMD=$(jq -r '.commands.test // "npm test"' ${CTX})
+$TEST_CMD
 ```
 
 ## status.json Format
@@ -102,6 +139,39 @@ cat ${PROGRESS}
 ```
 ```
 
+### Reading Inputs
+
+```markdown
+## Inputs
+
+Read initial inputs (from `--input` CLI flag):
+```bash
+jq -r '.inputs.from_initial[]' ${CTX} | xargs cat
+```
+
+Read from a named previous stage:
+```bash
+jq -r '.inputs.from_stage.plan[]' ${CTX} | xargs cat
+```
+
+Read from parallel block providers:
+```bash
+jq -r '.inputs.from_parallel.claude[]' ${CTX} | xargs cat
+```
+```
+
+### Using Commands Passthrough
+
+```markdown
+## Run Tests
+
+Use the configured test command:
+```bash
+TEST_CMD=$(jq -r '.commands.test // "npm test"' ${CTX})
+$TEST_CMD
+```
+```
+
 ### Writing Status
 
 ```markdown
@@ -128,10 +198,13 @@ After completing your work, write to `${STATUS}`:
 ```markdown
 ## Previous Stage Output
 
-Read outputs from the previous stage:
+Read outputs from previous stages via context.json:
 ```bash
-cat ${INPUTS}/summary.md
-ls ${INPUTS}/
+# Get outputs from named "plan" stage
+jq -r '.inputs.from_stage.plan[]' ${CTX} | xargs cat
+
+# Get outputs from parallel block providers
+jq -r '.inputs.from_parallel | to_entries[] | .value[]' ${CTX} | xargs cat
 ```
 ```
 

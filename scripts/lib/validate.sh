@@ -38,8 +38,8 @@ validate_session_name() {
   return 0
 }
 
-# Known template variables (including v3 variables: CTX, STATUS)
-KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS"
+# Known template variables (including v3 variables: CTX, STATUS, CONTEXT)
+KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS CONTEXT"
 
 # Validate a loop configuration
 # Usage: validate_stage "stage-name" [--quiet]

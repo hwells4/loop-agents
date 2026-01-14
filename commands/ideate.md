@@ -31,6 +31,26 @@ Ideas are scored (Impact 1-5, Effort 1-5, Risk 1-5) and ranked by ROI.
 
 **Fixed iterations** - runs exactly N times (default: 1). Each iteration reads previous output to avoid duplicates and push for fresh thinking.
 
+## Advanced Options
+
+Override provider, model, or inject context:
+
+```bash
+# Use Codex instead of Claude
+./scripts/run.sh ideate my-session 3 --provider=codex
+
+# Use specific model
+./scripts/run.sh ideate my-session 3 --model=sonnet
+
+# Focus ideation on specific area
+./scripts/run.sh ideate my-session 2 --context="Focus on performance optimizations"
+
+# Pass initial inputs
+./scripts/run.sh ideate my-session 2 --input=docs/current-architecture.md
+```
+
+See CLAUDE.md for full list of providers, models, and options.
+
 ## After Ideation
 
 - `/agent-pipelines:create-tasks` → Turn ideas into beads

@@ -1,0 +1,9 @@
+name: doc-updater
+description: Systematically update documentation based on audit findings
+
+termination:
+  type: judgment
+  min_iterations: 2
+  consensus: 2
+
+delay: 3

@@ -4,6 +4,8 @@ Read context from: ${CTX}
 Progress file: ${PROGRESS}
 Iteration: ${ITERATION}
 
+${CONTEXT}
+
 ## Your Task
 
 You are scanning this codebase for test coverage gaps. Each iteration, you bring fresh eyes to find what previous iterations might have missed.

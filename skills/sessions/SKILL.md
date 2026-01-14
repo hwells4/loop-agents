@@ -18,10 +18,46 @@ Both use the same directory structure, state files, and lock management.
 
 ## Session Resources
 
-Each session creates three resources that must stay synchronized:
-1. **Lock file** (`.claude/locks/{session}.lock`) - Prevents duplicates
-2. **State file** (`.claude/pipeline-runs/{session}/state.json`) - Tracks progress
-3. **tmux session** (`pipeline-{session}`) - Runs the actual process
+Each session creates resources in `.claude/pipeline-runs/{session}/`:
+
+**Core files:**
+- **Lock file** (`.claude/locks/{session}.lock`) - Prevents duplicates
+- **State file** (`state.json`) - Tracks progress
+- **Progress file** (`progress-{session}.md`) - Accumulated context
+- **Context file** (`iterations/NNN/context.json`) - Iteration metadata (inputs, commands, paths)
+- **tmux session** (`pipeline-{session}`) - Runs the actual process
+
+**Single-stage layout:**
+```
+.claude/pipeline-runs/{session}/
+├── state.json
+├── progress-{session}.md
+└── stage-00-{name}/
+    ├── iterations/
+    │   └── 001/
+    │       ├── context.json
+    │       ├── status.json
+    │       └── output.md
+    └── output.md
+```
+
+**Multi-stage with parallel blocks:**
+```
+.claude/pipeline-runs/{session}/
+├── state.json
+├── progress-{session}.md
+├── stage-00-setup/...
+├── parallel-01-dual-refine/
+│   ├── manifest.json          # Aggregated outputs for downstream
+│   ├── resume.json             # Per-provider crash recovery hints
+│   └── providers/
+│       ├── claude/
+│       │   ├── progress.md     # Provider-isolated progress
+│       │   ├── state.json
+│       │   └── stage-00-iterate/iterations/...
+│       └── codex/...
+└── stage-02-synthesize/...
+```
 
 Problems occur when these get out of sync (crashes, force-kills, network issues).
 
@@ -100,6 +136,13 @@ If no subcommand provided, use AskUserQuestion:
 **Start a work session:**
 ```bash
 ./scripts/run.sh ralph my-session 25
+```
+
+**With provider/model/context overrides:**
+```bash
+./scripts/run.sh ralph my-session 25 --provider=codex --model=o3
+./scripts/run.sh ralph my-session 25 --context="Focus on error handling"
+./scripts/run.sh ralph my-session 25 --input=docs/plan.md
 ```
 
 **Check what's running:**

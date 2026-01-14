@@ -17,6 +17,30 @@ Read the progress file to see what previous iterations discovered:
 cat ${PROGRESS}
 ```
 
+### Inputs from Previous Stages
+
+If this stage is part of a multi-stage pipeline, you may have inputs from previous stages or initial files:
+
+```bash
+# Read initial inputs (CLI --input files)
+jq -r '.inputs.from_initial[]? // empty' ${CTX} | while read file; do
+  echo "Reading: $file"
+  cat "$file"
+done
+
+# Read outputs from previous stages
+jq -r '.inputs.from_stage | to_entries[]? | .value[]? // empty' ${CTX} | while read file; do
+  echo "Reading previous stage output: $file"
+  cat "$file"
+done
+
+# Read outputs from parallel blocks (all providers)
+jq -r '.inputs.from_parallel | to_entries[]? | .value[]? // empty' ${CTX} | while read file; do
+  echo "Reading parallel output: $file"
+  cat "$file"
+done
+```
+
 ## Exploration
 
 Begin by understanding what you're exploring — whether that's a branch, a PR, a subsystem, or the entire codebase. Get the lay of the land. Review AGENTS.md and CLAUDE.md intensively. Then reread them. Finally, explore the codebase. Understand the core architecture and how the pieces connect before judging any of them.

@@ -28,6 +28,26 @@ Each iteration identifies 5 agent-usability improvements covering:
 
 **Fixed iterations** - runs exactly N times (default: 3). Each iteration reads previous output to analyze different areas.
 
+## Advanced Options
+
+Override provider, model, or inject context:
+
+```bash
+# Use Codex for analysis
+./scripts/run.sh robot-mode my-session 3 --provider=codex
+
+# Use specific model
+./scripts/run.sh robot-mode my-session 2 --model=opus
+
+# Focus analysis on specific component
+./scripts/run.sh robot-mode my-session 2 --context="Analyze CLI for JSON output opportunities"
+
+# Pass specific code/docs to analyze
+./scripts/run.sh robot-mode my-session 2 --input=src/cli.py
+```
+
+See CLAUDE.md for full list of providers, models, and options.
+
 ## After Analysis
 
 Use the output to create beads for implementing the improvements:

@@ -43,3 +43,45 @@ This prevents:
 
 - `/work` → Start implementing refined beads
 - `/refine` again → Go deeper if needed
+
+## Advanced Options
+
+Override provider, model, context, and pass initial inputs:
+
+### Provider and Model
+
+```bash
+# Use Codex for refinement
+./scripts/run.sh pipeline full-refine.yaml my-session --provider=codex
+
+# Specific model
+./scripts/run.sh pipeline quick-refine.yaml my-session --model=opus
+```
+
+### Context Injection
+
+```bash
+# Focus refinement on specific areas
+./scripts/run.sh pipeline full-refine.yaml my-session \
+  --context="Focus on security and error handling"
+```
+
+### Initial Inputs
+
+Pass specific plan files instead of relying on `docs/plans/` discovery:
+
+```bash
+# Single plan
+./scripts/run.sh pipeline full-refine.yaml my-session --input docs/plans/auth-plan.md
+
+# Multiple plans
+./scripts/run.sh pipeline full-refine.yaml my-session \
+  --input docs/plans/auth-plan.md \
+  --input docs/architecture.md
+```
+
+Stages read inputs via `context.json`:
+```bash
+# From prompt.md
+jq -r '.inputs.from_initial[]' ${CTX} | xargs cat
+```

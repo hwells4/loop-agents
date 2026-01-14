@@ -52,11 +52,12 @@ check_provider() {
 
 # Validate reasoning effort for Codex
 # Usage: validate_reasoning_effort "$effort"
+# Values: minimal, low, medium, high, xhigh
 validate_reasoning_effort() {
   case "$1" in
-    minimal|low|medium|high) return 0 ;;
+    minimal|low|medium|high|xhigh) return 0 ;;
     *)
-      echo "Error: Invalid reasoning effort: $1 (valid: minimal, low, medium, high)" >&2
+      echo "Error: Invalid reasoning effort: $1 (valid: minimal, low, medium, high, xhigh)" >&2
       return 1
       ;;
   esac
@@ -66,7 +67,7 @@ validate_reasoning_effort() {
 # Usage: validate_codex_model "$model"
 validate_codex_model() {
   case "$1" in
-    gpt-5.2-codex|gpt-5-codex|gpt-5.2|gpt-5|o3|o3-mini|o4-mini) return 0 ;;
+    gpt-5.2-codex|gpt-5.1-codex-max|gpt-5.1-codex-mini|gpt-5.1-codex|gpt-5-codex|gpt-5-codex-mini) return 0 ;;
     *)
       echo "Error: Unknown Codex model: $1" >&2
       return 1

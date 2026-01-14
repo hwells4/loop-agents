@@ -142,15 +142,30 @@ If validation fails, fix the issue before presenting the result.
 | `termination.consensus` | Consecutive stops needed (judgment) |
 | `termination.max_iterations` | Hard limit (fixed) |
 | `provider` | claude or codex (default: claude) |
-| `model` | opus, sonnet, haiku (claude) or gpt-5.2-codex (codex) |
+| `model` | opus, sonnet, haiku (claude) or gpt-5.2-codex, gpt-5.1-codex-max, gpt-5.1-codex-mini (codex) |
 | `delay` | Seconds between iterations |
+
+### Codex Reasoning Effort
+
+When using Codex, set reasoning via `CODEX_REASONING_EFFORT` env var:
+
+| Level | Use Case |
+|-------|----------|
+| `minimal` | Simple tasks, fastest |
+| `low` | Straightforward code |
+| `medium` | **Recommended daily driver** |
+| `high` | Complex tasks (default) |
+| `xhigh` | Maximum reasoning, slowest |
+
+**Guidance:** Reserve `xhigh` for 1-2 iteration tasks. For 5+ iteration loops, use `medium` or `high`.
 | `context` | Optional text injected into prompt as ${CONTEXT} |
+| `commands` | Commands passthrough (test, lint, format, types, build) |
 
 ### Stage (prompt.md)
 
 | Section | Notes |
 |---------|-------|
-| Context section | Preserve ${CTX}, ${PROGRESS}, ${STATUS} |
+| Context section | Preserve ${CTX}, ${PROGRESS}, ${STATUS}, ${CONTEXT}, ${OUTPUT} |
 | Autonomy grant | Preserve the philosophy |
 | Guidance | Edit task-specific instructions |
 | Status template | Preserve JSON format |
@@ -159,10 +174,13 @@ If validation fails, fix the issue before presenting the result.
 
 | Property | Description |
 |----------|-------------|
-| `stages[].loop` | Which stage to run |
+| `stages[].stage` | Which stage to run |
 | `stages[].runs` | Max iterations for this stage |
-| `stages[].inputs` | Dependencies on previous stages |
+| `stages[].inputs` | Dependencies on previous stages (from, from_parallel) |
 | `stages[].context` | Override stage context for this pipeline |
+| `stages[].parallel` | Parallel block config (providers, stages array) |
+| `stages[].parallel.providers` | Array of providers: [claude, codex] |
+| `stages[].parallel.stages` | Stages to run for each provider |
 
 ## Workflows Index
 

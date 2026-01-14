@@ -71,8 +71,31 @@ Invoke for each new stage (parallel):
 Task(
   subagent_type="stage-creator",
   description="Create stage: {name}",
-  prompt="Create stage with specification:\n\nname: {name}\ndescription: {desc}\ntermination:\n  type: {type}\nprovider: {provider}\nmodel: {model}"
+  prompt="Create stage with specification:\n\nname: {name}\ndescription: {desc}\ntermination:\n  type: {type}\nprovider: {provider}\nmodel: {model}\ncontext: {context}\ncommands:\n  test: {test_cmd}\n  lint: {lint_cmd}\ninputs:\n  from_initial: {from_initial}\n  from_stage: {from_stage}\n  from_parallel: {from_parallel}"
 )
+```
+
+**Stage specification format:**
+```yaml
+name: stage-name
+description: What this stage does
+termination:
+  type: queue | judgment | fixed
+  min_iterations: N
+  consensus: N
+  max_iterations: N
+provider: claude | codex
+model: opus | sonnet | haiku | gpt-5.2-codex | gpt-5.1-codex-max | gpt-5.1-codex-mini
+context: |
+  Optional instructions injected into prompt as ${CONTEXT}
+commands:
+  test: "npm test"
+  lint: "npm run lint"
+  types: "npm run typecheck"
+inputs:
+  from_initial: true         # Pass CLI --input files
+  from_stage: plan           # Outputs from named stage
+  from_parallel: analyze     # Outputs from parallel block
 ```
 
 Produces:
@@ -92,8 +115,64 @@ Task(
 )
 ```
 
+**Pipeline specification format:**
+```yaml
+name: pipeline-name
+description: What this pipeline does
+commands:
+  test: "npm test"
+  lint: "npm run lint"
+stages:
+  - name: stage-name
+    stage: improve-plan
+    runs: 5
+    inputs:
+      from: previous-stage    # Wire outputs between stages
+      select: latest          # "latest" (default) or "history"
+
+  # Parallel block: run multiple providers concurrently
+  - name: dual-review
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - name: analyze
+          stage: code-review
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Post-parallel stage: consume parallel outputs
+  - name: synthesize
+    stage: elegance
+    inputs:
+      from_parallel: analyze  # Gets outputs from all parallel providers
+```
+
 Produces:
 - `scripts/pipelines/{name}.yaml`
+
+## Provider/Model Options
+
+| Provider | Models | Best For |
+|----------|--------|----------|
+| **claude** | opus, sonnet, haiku | General coding, nuanced judgment |
+| **codex** | gpt-5.2-codex, gpt-5.1-codex-max, gpt-5.1-codex-mini | Code generation, agentic tasks |
+
+### Codex Reasoning Effort
+
+Codex supports `model_reasoning_effort` to control thinking depth:
+
+| Level | Use Case |
+|-------|----------|
+| `minimal` | Simple tasks, fastest |
+| `low` | Straightforward code |
+| `medium` | **Recommended daily driver** |
+| `high` | Complex tasks (default) |
+| `xhigh` | Maximum reasoning, slowest |
+
+Set via `CODEX_REASONING_EFFORT` environment variable.
+
+**Guidance:** Reserve `xhigh` for 1-2 iteration tasks (plan synthesis, task creation). For 5+ iteration loops, use `medium` or `high`—xhigh cost/latency adds up fast.
 
 ## Validation
 

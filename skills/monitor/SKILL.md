@@ -23,10 +23,22 @@ The monitor skill is an ACTIVE debugging companion. Unlike `/sessions` which sho
 .claude/pipeline-runs/{session}/
 ├── state.json                            # Iteration tracking, history
 ├── progress-{session}.md                 # Accumulated learnings
-└── stage-NN-{stage}/iterations/NNN/
-    ├── context.json                      # Input context
-    ├── output.md                         # Agent output
-    └── status.json                       # Decision (continue/stop/error)
+├── stage-NN-{stage}/iterations/NNN/
+│   ├── context.json                      # Input context (check: inputs, commands)
+│   ├── output.md                         # Agent output
+│   └── status.json                       # Decision (continue/stop/error)
+└── parallel-NN-{block}/                  # Parallel block (if present)
+    ├── manifest.json                     # Aggregated outputs
+    ├── resume.json                       # Per-provider recovery hints
+    └── providers/
+        ├── claude/
+        │   ├── progress.md               # Provider-isolated progress
+        │   ├── state.json                # Provider-specific state
+        │   └── stage-NN-{stage}/iterations/NNN/
+        └── codex/
+            ├── progress.md
+            ├── state.json
+            └── stage-NN-{stage}/iterations/NNN/
 ```
 
 ## Health Checks
@@ -35,6 +47,8 @@ The monitor skill is an ACTIVE debugging companion. Unlike `/sessions` which sho
 - iteration_completed matches directory count
 - status.json has valid decision enum
 - Progress file is growing
+- context.json contains inputs and commands objects
+- For parallel blocks: manifest.json exists, all providers have subdirectories
 </essential_principles>
 
 <usage>

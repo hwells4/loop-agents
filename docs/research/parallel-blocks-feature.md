@@ -40,7 +40,7 @@ Configuration can be set at multiple levels, with a clear precedence order:
 
 ```bash
 # CLI flags (highest priority)
-./scripts/run.sh ralph auth 25 --provider=codex --model=o3
+./scripts/run.sh ralph auth 25 --provider=codex --model=gpt-5.1-codex-max
 
 # Environment variables
 CLAUDE_PIPELINE_PROVIDER=codex ./scripts/run.sh ralph auth 25
@@ -80,21 +80,27 @@ termination:
 |------------|-------------|
 | `gpt-5.2-codex` | Default, most capable Codex model |
 | `gpt-5-codex` | Previous generation |
-| `o3` | Reasoning model |
-| `o3-mini` | Smaller reasoning model |
-| `o4-mini` | Latest small reasoning model |
+| `gpt-5.1-codex-max` | Frontier agentic model |
+| `gpt-5.1-codex-mini` | Cost-effective model |
+| `gpt-5-codex-mini` | Original mini model |
 
 **Reasoning effort** controls how much "thinking" Codex does:
 
+| Level | Use Case |
+|-------|----------|
+| `minimal` | Simple tasks, fastest |
+| `low` | Straightforward code |
+| `medium` | **Recommended daily driver** |
+| `high` | Complex tasks (default) |
+| `xhigh` | Maximum reasoning, slowest |
+
 ```bash
 # Set via environment variable (default: high)
-CODEX_REASONING_EFFORT=minimal ./scripts/run.sh ralph my-session 25
-CODEX_REASONING_EFFORT=low ./scripts/run.sh ralph my-session 25
 CODEX_REASONING_EFFORT=medium ./scripts/run.sh ralph my-session 25
-CODEX_REASONING_EFFORT=high ./scripts/run.sh ralph my-session 25
+CODEX_REASONING_EFFORT=xhigh ./scripts/run.sh ralph my-session 2  # Only for 1-2 iterations
 ```
 
-Valid values: `minimal`, `low`, `medium`, `high`
+**Guidance:** Reserve `xhigh` for 1-2 iteration tasks (plan synthesis, task creation). For 5+ iteration loops, use `medium` or `high`—xhigh cost/latency adds up fast.
 
 ### Provider Execution
 
@@ -1288,7 +1294,7 @@ cat .claude/pipeline-runs/{session}/parallel-*/providers/codex/state.json | jq '
 # Override model
 ./scripts/run.sh ralph my-session 25 --model=opus
 ./scripts/run.sh ralph my-session 25 --model=sonnet
-./scripts/run.sh ralph my-session 25 --model=o3
+./scripts/run.sh ralph my-session 25 --model=gpt-5.1-codex-max
 
 # Both
 ./scripts/run.sh ralph my-session 25 --provider=codex --model=gpt-5.2-codex

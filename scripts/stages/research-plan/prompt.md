@@ -5,6 +5,8 @@ Progress file: ${PROGRESS}
 Status output: ${STATUS}
 Iteration: ${ITERATION}
 
+${CONTEXT}
+
 ## Your Mission
 
 You are a senior architect conducting **research-driven plan refinement**. Your job is to:
@@ -20,7 +22,28 @@ This is NOT just a review pass. Each iteration should dig into something specifi
 
 ## Context
 
-**Plan location:** Check `docs/plans/` or `plans/` directories for the plan being refined:
+**Check for input plans first** (passed via CLI or previous stages):
+```bash
+# Initial inputs (CLI --input files)
+jq -r '.inputs.from_initial[]' ${CTX} 2>/dev/null | while read file; do
+  echo "Reading input plan: $file"
+  cat "$file"
+done
+
+# Previous stage outputs (from multi-stage pipelines)
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "Reading previous stage plan: $file"
+  cat "$file"
+done
+
+# Parallel block outputs (from multiple providers)
+jq -r '.inputs.from_parallel | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "Reading parallel plan output: $file"
+  cat "$file"
+done
+```
+
+**Fallback to filesystem search** if no inputs provided:
 ```bash
 ls docs/plans/*.md plans/*.md 2>/dev/null | head -5
 ```

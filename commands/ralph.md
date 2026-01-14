@@ -80,3 +80,62 @@ Stop:    /sessions kill {session}
 **Assistant:** *checks `bd ready`* "Found 8 ready beads. How many iterations?"
 **User:** "10"
 **Assistant:** *runs `./scripts/run.sh ralph default 10`* "Started pipeline 'default'..."
+
+## Advanced Options
+
+You can override provider, model, context, and pass initial inputs:
+
+### Provider and Model
+
+```bash
+# Use Codex instead of Claude
+./scripts/run.sh ralph {session} {iterations} --provider=codex
+
+# Use specific model
+./scripts/run.sh ralph {session} {iterations} --model=opus
+./scripts/run.sh ralph {session} {iterations} --model=o3
+
+# Both
+./scripts/run.sh ralph {session} {iterations} --provider=codex --model=gpt-5.2-codex
+```
+
+### Context Injection
+
+Inject custom instructions into the prompt:
+
+```bash
+./scripts/run.sh ralph {session} {iterations} --context="Focus on authentication bugs only"
+./scripts/run.sh ralph {session} {iterations} --context="Read docs/plan.md before starting"
+```
+
+### Initial Inputs
+
+Pass files to read before starting:
+
+```bash
+# Single file
+./scripts/run.sh ralph {session} {iterations} --input docs/plan.md
+
+# Multiple files
+./scripts/run.sh ralph {session} {iterations} \
+  --input docs/plan.md \
+  --input docs/requirements.md
+```
+
+### Commands Passthrough
+
+If configured in `stage.yaml`, agents will use project-specific validation commands from `context.json`:
+
+```json
+{
+  "commands": {
+    "test": "bundle exec rspec",
+    "lint": "bundle exec rubocop"
+  }
+}
+```
+
+Agents read these via:
+```bash
+TEST_CMD=$(jq -r '.commands.test // "npm test"' ${CTX})
+```

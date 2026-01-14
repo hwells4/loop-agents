@@ -90,6 +90,12 @@ The designer produces a confirmed spec saved to `.claude/pipeline-specs/{name}.y
 name: pipeline-name
 confirmed_at: 2026-01-12T10:00:00Z
 
+# Optional: commands passed to all stages
+commands:
+  test: "npm test"
+  lint: "npm run lint"
+  types: "npm run typecheck"
+
 stages:
   - name: stage-name
     description: What this stage does
@@ -100,12 +106,62 @@ stages:
       consensus: N
       max_iterations: N
     provider: claude | codex
-    model: opus | sonnet | haiku | gpt-5.2-codex
-    inputs: [stage-names]
+    model: opus | sonnet | haiku | gpt-5.2-codex | gpt-5.1-codex-max | gpt-5.1-codex-mini
+    context: |
+      Optional instructions injected into prompt as ${CONTEXT}
+    inputs:
+      from_initial: true         # Pass CLI --input files
+      from_stage: plan           # Outputs from named stage
+
+  # Parallel block: run multiple providers concurrently
+  - name: dual-review
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - name: analyze
+          stage: code-review
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Post-parallel stage: consume parallel outputs
+  - name: synthesize
+    stage: elegance
+    inputs:
+      from_parallel: analyze     # Gets outputs from all parallel providers
 
 rationale: |
   Why this architecture fits the use case.
 ```
+
+### Provider/Model Options
+
+| Provider | Models | Best For |
+|----------|--------|----------|
+| **claude** | opus, sonnet, haiku | General coding, nuanced judgment |
+| **codex** | gpt-5.2-codex, gpt-5.1-codex-max, gpt-5.1-codex-mini | Code generation, agentic tasks |
+
+### Codex Reasoning Effort
+
+Codex supports `model_reasoning_effort` to control thinking depth:
+
+| Level | Use Case | Latency |
+|-------|----------|---------|
+| `minimal` | Simple tasks | Fastest |
+| `low` | Straightforward code | Fast |
+| `medium` | **Recommended daily driver** | Balanced |
+| `high` | Complex tasks (default) | Slower |
+| `xhigh` | Maximum reasoning | Slowest |
+
+Set via environment variable:
+```bash
+CODEX_REASONING_EFFORT=medium ./scripts/run.sh my-stage session 10 --provider=codex
+```
+
+**Guidance:**
+- `medium` is the recommended daily driver for most tasks
+- `high` is good for complex single iterations
+- **`xhigh` should be reserved for 1-2 iteration tasks** (e.g., plan synthesis, task creation) where deep reasoning matters. Never use xhigh for 5+ iteration loops—the cost/latency adds up fast.
 
 ## Handoff to Pipeline Creator
 

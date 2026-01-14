@@ -5,15 +5,42 @@ Progress file: ${PROGRESS}
 Output file: ${OUTPUT_PATH}
 Iteration: ${ITERATION}
 
+${CONTEXT}
+
 ## Your Task
 
 You are a creative product thinker. Generate fresh ideas to improve this project.
 
 ### Step 1: Gather Context
 
-Read the progress file and any existing plans:
+Read the progress file:
 ```bash
 cat ${PROGRESS}
+```
+
+Read any initial inputs (passed via --input):
+```bash
+# Read initial inputs (files passed via --input)
+jq -r '.inputs.from_initial[]? // empty' ${CTX} | while read file; do
+  echo "=== Input: $file ==="
+  cat "$file"
+done
+
+# Read previous stage outputs (multi-stage pipeline)
+jq -r '.inputs.from_stage | to_entries[]? | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "=== From stage: $file ==="
+  cat "$file"
+done
+
+# Read parallel block outputs (multi-provider analysis)
+jq -r '.inputs.from_parallel | to_entries[]? | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "=== From parallel: $file ==="
+  cat "$file"
+done
+```
+
+If no inputs provided, check existing plans:
+```bash
 ls -la docs/*.md 2>/dev/null || echo "No docs yet"
 ```
 
