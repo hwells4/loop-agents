@@ -337,6 +337,8 @@ test_fixed_n_accepts_status_file_param() {
 
   assert_eq "0" "$result" "Fixed-N completes at target iteration"
 
+  unset FIXED_ITERATIONS
+  unset MAX_ITERATIONS
   rm -rf "$test_dir"
 }
 
@@ -359,6 +361,8 @@ test_fixed_n_respects_status_stop() {
 
   assert_eq "0" "$result" "Fixed-N respects status decision, stops early"
 
+  unset FIXED_ITERATIONS
+  unset MAX_ITERATIONS
   rm -rf "$test_dir"
 }
 

@@ -1,5 +1,8 @@
 #!/bin/bash
-set -euo pipefail
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+fi
 
 COMPILE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${LIB_DIR:-$COMPILE_SCRIPT_DIR}"

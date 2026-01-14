@@ -63,7 +63,7 @@ test_get_mock_response_default() {
 
   local response=$(get_mock_response 99)
 
-  assert_contains "$response" "Mock Work Iteration" "Returns default fixture content"
+  assert_contains "$response" "Mock Response" "Returns default fixture content"
 
   disable_mock_mode
 }
