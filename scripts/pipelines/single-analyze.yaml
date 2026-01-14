@@ -1,0 +1,13 @@
+name: single-analyze
+description: Single provider test
+
+stages:
+  - name: analyze
+    parallel:
+      providers: [claude]
+      stages:
+        - name: improve
+          stage: improve-plan
+          termination:
+            type: fixed
+            iterations: 1

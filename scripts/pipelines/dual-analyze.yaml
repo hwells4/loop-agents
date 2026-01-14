@@ -1,0 +1,18 @@
+name: dual-analyze
+description: Parallel analysis with Claude Opus and Codex
+
+stages:
+  - name: analyze
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - name: improve
+          stage: improve-plan
+          termination:
+            type: fixed
+            iterations: 1
+        - name: elegance
+          stage: elegance
+          termination:
+            type: fixed
+            iterations: 1
