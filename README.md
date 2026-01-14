@@ -15,7 +15,7 @@ claude plugin marketplace add https://github.com/hwells4/agent-pipelines
 claude plugin install agent-pipelines@dodo-digital
 ```
 
-**Dependencies:** `tmux`, `jq`, `bd` ([beads CLI](https://github.com/hwells4/beads))
+**Dependencies:** [`tmux`](https://github.com/tmux/tmux), [`jq`](https://github.com/jqlang/jq), [`yq`](https://github.com/mikefarah/yq), [`bd`](https://github.com/steveyegge/beads) (beads CLI)
 
 ## Example
 
