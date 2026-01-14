@@ -40,6 +40,7 @@ source "$LIB_DIR/validate.sh"
 source "$LIB_DIR/provider.sh"
 source "$LIB_DIR/stage.sh"
 source "$LIB_DIR/parallel.sh"
+source "$LIB_DIR/events.sh"
 
 # Source mock library if MOCK_MODE is enabled (for testing)
 if [ "$MOCK_MODE" = true ] && [ -f "$LIB_DIR/mock.sh" ]; then
@@ -48,6 +49,76 @@ fi
 
 # Export for hooks
 export CLAUDE_PIPELINE_AGENT=1
+
+#-------------------------------------------------------------------------------
+# Event Helpers
+#-------------------------------------------------------------------------------
+
+# Build cursor JSON for events.jsonl.
+# Usage: build_event_cursor "$node_path" "$iteration" ["$node_run"]
+build_event_cursor() {
+  local node_path=$1
+  local iteration=${2:-0}
+  local node_run=${3:-""}
+
+  if [ -z "$node_path" ] || [ "$node_path" = "null" ]; then
+    echo "null"
+    return 0
+  fi
+
+  if [ -z "$node_run" ]; then
+    node_run="$iteration"
+  fi
+
+  if ! [[ "$iteration" =~ ^[0-9]+$ ]]; then
+    iteration=0
+  fi
+  if ! [[ "$node_run" =~ ^[0-9]+$ ]]; then
+    node_run=0
+  fi
+
+  jq -c -n \
+    --arg path "$node_path" \
+    --argjson run "$node_run" \
+    --argjson iter "$iteration" \
+    '{node_path: $path, node_run: $run, iteration: $iter}'
+}
+
+# Build cursor JSON from state snapshot for session-level events.
+# Usage: event_cursor_from_state "$state_file"
+event_cursor_from_state() {
+  local state_file=$1
+
+  local node_path="0"
+  local iteration="0"
+  if [ -f "$state_file" ]; then
+    node_path=$(jq -r '.current_stage // 0' "$state_file" 2>/dev/null)
+    iteration=$(jq -r '.iteration_completed // .iteration // 0' "$state_file" 2>/dev/null)
+  fi
+
+  build_event_cursor "$node_path" "$iteration" "$iteration"
+}
+
+# Append event to events.jsonl (warns on failure).
+# Usage: emit_event_or_warn "$type" "$session" ["$cursor_json"] ["$data_json"]
+emit_event_or_warn() {
+  local type=$1
+  local session=$2
+  local cursor_json=${3:-"null"}
+  local data_json=${4:-"{}"}
+
+  if [ -z "$cursor_json" ]; then
+    cursor_json="null"
+  fi
+  if [ -z "$data_json" ] || [ "$data_json" = "null" ]; then
+    data_json="{}"
+  fi
+
+  if ! append_event "$type" "$session" "$cursor_json" "$data_json"; then
+    echo "Warning: Failed to append event '$type' for session '$session'" >&2
+    return 1
+  fi
+}
 
 #-------------------------------------------------------------------------------
 # Run Stage
@@ -83,6 +154,29 @@ run_stage() {
   local state_file=$(init_state "$session" "loop" "$run_dir")
   local progress_file=$(init_progress "$session" "$run_dir")
 
+  local events_file
+  events_file=$(events_file_path "$session")
+  if [ ! -s "$events_file" ]; then
+    local start_cursor
+    start_cursor=$(build_event_cursor "$stage_idx" 0 0)
+    local start_data
+    start_data=$(jq -n \
+      --arg mode "loop" \
+      --arg stage "$stage_type" \
+      --arg name "$STAGE_NAME" \
+      '{mode: $mode, stage: $stage, stage_name: $name}')
+    emit_event_or_warn "session_start" "$session" "$start_cursor" "$start_data" || true
+
+    local node_data
+    node_data=$(jq -n \
+      --arg name "$STAGE_NAME" \
+      --arg type "$stage_type" \
+      --arg provider "$STAGE_PROVIDER" \
+      --arg model "$STAGE_MODEL" \
+      '{name: $name, type: $type, provider: $provider, model: $model}')
+    emit_event_or_warn "node_start" "$session" "$start_cursor" "$node_data" || true
+  fi
+
   export CLAUDE_PIPELINE_SESSION="$session"
   export CLAUDE_PIPELINE_TYPE="$stage_type"
   export MAX_ITERATIONS="$max_iterations"
@@ -108,6 +202,16 @@ run_stage() {
 
     # Mark iteration started (for crash recovery)
     mark_iteration_started "$state_file" "$i"
+    local iter_cursor
+    iter_cursor=$(build_event_cursor "$stage_idx" "$i" "$i")
+    local iter_start_data
+    iter_start_data=$(jq -n \
+      --arg stage "$STAGE_NAME" \
+      --arg type "$stage_type" \
+      --arg provider "$STAGE_PROVIDER" \
+      --arg model "$STAGE_MODEL" \
+      '{stage: $stage, type: $type, provider: $provider, model: $model}')
+    emit_event_or_warn "iteration_start" "$session" "$iter_cursor" "$iter_start_data" || true
 
     # Pre-iteration completion check
     if [ "$STAGE_CHECK_BEFORE" = "true" ]; then
@@ -115,6 +219,17 @@ run_stage() {
         local reason=$(check_completion "$session" "$state_file" "" 2>&1)
         echo "$reason"
         mark_complete "$state_file" "$reason"
+        local complete_cursor
+        complete_cursor=$(build_event_cursor "$stage_idx" 0 0)
+        local node_complete_data
+        node_complete_data=$(jq -n \
+          --arg name "$STAGE_NAME" \
+          --arg reason "$reason" \
+          '{name: $name, status: "complete", reason: $reason}')
+        emit_event_or_warn "node_complete" "$session" "$complete_cursor" "$node_complete_data" || true
+        local session_complete_data
+        session_complete_data=$(jq -n --arg reason "$reason" '{reason: $reason}')
+        emit_event_or_warn "session_complete" "$session" "$complete_cursor" "$session_complete_data" || true
         record_completion "complete" "$session" "$stage_type"
         return 0
       fi
@@ -176,6 +291,15 @@ run_stage() {
     # Phase 5: Fail fast - no retries, immediate failure with clear state
     if [ $exit_code -ne 0 ]; then
       local error_msg="Claude process exited with code $exit_code"
+      local error_cursor
+      error_cursor=$(build_event_cursor "$stage_idx" "$i" "$i")
+      local error_data
+      error_data=$(jq -n \
+        --arg message "$error_msg" \
+        --argjson code "$exit_code" \
+        --arg stage "$STAGE_NAME" \
+        '{message: $message, exit_code: $code, stage: $stage}')
+      emit_event_or_warn "error" "$session" "$error_cursor" "$error_data" || true
 
       # Write error status to iteration
       create_error_status "$status_file" "$error_msg"
@@ -219,6 +343,17 @@ run_stage() {
     # Pass stage name for multi-stage plateau filtering
     update_iteration "$state_file" "$i" "$history_json" "$STAGE_NAME"
     mark_iteration_completed "$state_file" "$i"
+    local iter_decision
+    local iter_reason
+    iter_decision=$(get_status_decision "$status_file")
+    iter_reason=$(get_status_reason "$status_file")
+    local iter_complete_data
+    iter_complete_data=$(jq -n \
+      --arg status "$status_file" \
+      --arg decision "$iter_decision" \
+      --arg reason "$iter_reason" \
+      '{status_file: $status, decision: $decision, reason: $reason}')
+    emit_event_or_warn "iteration_complete" "$session" "$iter_cursor" "$iter_complete_data" || true
 
     # Post-iteration completion check (v3: pass status file path)
     if check_completion "$session" "$state_file" "$status_file"; then
@@ -226,6 +361,17 @@ run_stage() {
       echo ""
       echo "$reason"
       mark_complete "$state_file" "$reason"
+      local complete_cursor
+      complete_cursor=$(build_event_cursor "$stage_idx" "$i" "$i")
+      local node_complete_data
+      node_complete_data=$(jq -n \
+        --arg name "$STAGE_NAME" \
+        --arg reason "$reason" \
+        '{name: $name, status: "complete", reason: $reason}')
+      emit_event_or_warn "node_complete" "$session" "$complete_cursor" "$node_complete_data" || true
+      local session_complete_data
+      session_complete_data=$(jq -n --arg reason "$reason" '{reason: $reason}')
+      emit_event_or_warn "session_complete" "$session" "$complete_cursor" "$session_complete_data" || true
       record_completion "complete" "$session" "$stage_type"
       return 0
     fi
@@ -235,6 +381,17 @@ run_stage() {
       echo ""
       echo "Completion signal received"
       mark_complete "$state_file" "completion_signal"
+      local complete_cursor
+      complete_cursor=$(build_event_cursor "$stage_idx" "$i" "$i")
+      local node_complete_data
+      node_complete_data=$(jq -n \
+        --arg name "$STAGE_NAME" \
+        --arg reason "completion_signal" \
+        '{name: $name, status: "complete", reason: $reason}')
+      emit_event_or_warn "node_complete" "$session" "$complete_cursor" "$node_complete_data" || true
+      local session_complete_data
+      session_complete_data=$(jq -n --arg reason "completion_signal" '{reason: $reason}')
+      emit_event_or_warn "session_complete" "$session" "$complete_cursor" "$session_complete_data" || true
       record_completion "complete" "$session" "$stage_type"
       return 0
     fi
@@ -247,6 +404,17 @@ run_stage() {
   echo ""
   echo "Maximum iterations ($max_iterations) reached"
   mark_complete "$state_file" "max_iterations"
+  local complete_cursor
+  complete_cursor=$(build_event_cursor "$stage_idx" "$max_iterations" "$max_iterations")
+  local node_complete_data
+  node_complete_data=$(jq -n \
+    --arg name "$STAGE_NAME" \
+    --arg reason "max_iterations" \
+    '{name: $name, status: "complete", reason: $reason}')
+  emit_event_or_warn "node_complete" "$session" "$complete_cursor" "$node_complete_data" || true
+  local session_complete_data
+  session_complete_data=$(jq -n --arg reason "max_iterations" '{reason: $reason}')
+  emit_event_or_warn "session_complete" "$session" "$complete_cursor" "$session_complete_data" || true
   record_completion "max_iterations" "$session" "$stage_type"
   return 1
 }
@@ -462,6 +630,20 @@ run_pipeline() {
   # Initialize state
   local state_file=$(init_state "$session" "pipeline" "$run_dir")
 
+  local events_file
+  events_file=$(events_file_path "$session")
+  if [ ! -s "$events_file" ]; then
+    local start_cursor
+    start_cursor=$(build_event_cursor "0" 0 0)
+    local start_data
+    start_data=$(jq -n \
+      --arg mode "pipeline" \
+      --arg name "$pipeline_name" \
+      --arg file "$pipeline_file" \
+      '{mode: $mode, pipeline: $name, pipeline_file: $file}')
+    emit_event_or_warn "session_start" "$session" "$start_cursor" "$start_data" || true
+  fi
+
   echo "╔══════════════════════════════════════════════════════════════╗"
   echo "║  Pipeline: $pipeline_name"
   echo "║  Session:  $session"
@@ -527,14 +709,37 @@ run_pipeline() {
         check_deps --require-bd || return 1
       fi
 
+      local block_cursor
+      block_cursor=$(build_event_cursor "$stage_idx" 0 0)
+      local block_data
+      block_data=$(echo "$block_config" | jq -c --arg name "$stage_name" '
+        {
+          name: $name,
+          kind: "parallel",
+          providers: (.parallel.providers // []),
+          stages: (.parallel.stages | map(.name))
+        }')
+      emit_event_or_warn "node_start" "$session" "$block_cursor" "$block_data" || true
+
       # Run parallel block
       if ! run_parallel_block "$stage_idx" "$block_config" "$defaults_json" "$state_file" "$run_dir" "$session"; then
         echo "Error: Parallel block '$stage_name' failed"
+        local error_data
+        error_data=$(jq -n \
+          --arg message "Parallel block '$stage_name' failed" \
+          --arg stage "$stage_name" \
+          '{message: $message, stage: $stage}')
+        emit_event_or_warn "error" "$session" "$block_cursor" "$error_data" || true
         mark_failed "$state_file" "Parallel block '$stage_name' failed" "parallel_block_failed"
         return 1
       fi
 
       update_stage "$state_file" "$stage_idx" "$stage_name" "complete"
+      local block_complete_data
+      block_complete_data=$(jq -n \
+        --arg name "$stage_name" \
+        '{name: $name, status: "complete"}')
+      emit_event_or_warn "node_complete" "$session" "$block_cursor" "$block_complete_data" || true
       echo ""
       continue  # Skip to next stage
     fi
@@ -610,6 +815,20 @@ run_pipeline() {
     echo "│ Runs: $stage_runs | Model: $stage_model"
     echo "└──────────────────────────────────────────────────────────────"
     echo ""
+
+    if [ "$stage_idx" -ne "$start_stage" ] || [ "$start_iteration" -le 1 ]; then
+      local node_cursor
+      node_cursor=$(build_event_cursor "$stage_idx" 0 0)
+      local node_start_data
+      node_start_data=$(jq -n \
+        --arg name "$stage_name" \
+        --arg type "$stage_type" \
+        --arg provider "$stage_provider" \
+        --arg model "$stage_model" \
+        --argjson runs "$stage_runs" \
+        '{name: $name, type: $type, provider: $provider, model: $model, runs: $runs}')
+      emit_event_or_warn "node_start" "$session" "$node_cursor" "$node_start_data" || true
+    fi
 
     update_stage "$state_file" "$stage_idx" "$stage_name" "running"
 
@@ -701,6 +920,16 @@ run_pipeline() {
 
       # Track iteration start in state
       mark_iteration_started "$state_file" "$iteration"
+      local iter_cursor
+      iter_cursor=$(build_event_cursor "$stage_idx" "$iteration" "$((run_idx + 1))")
+      local iter_start_data
+      iter_start_data=$(jq -n \
+        --arg stage "$stage_name" \
+        --arg type "$stage_type" \
+        --arg provider "$stage_provider" \
+        --arg model "$stage_model" \
+        '{stage: $stage, type: $type, provider: $provider, model: $model}')
+      emit_event_or_warn "iteration_start" "$session" "$iter_cursor" "$iter_start_data" || true
 
       # Export status file path for mock mode (mock.sh needs to know where to write status)
       export MOCK_STATUS_FILE="$status_file"
@@ -715,6 +944,15 @@ run_pipeline() {
       # Phase 5: Fail fast - no retries, immediate failure with clear state
       if [ $exit_code -ne 0 ]; then
         local error_msg="Claude process exited with code $exit_code during stage '$stage_name'"
+        local error_cursor
+        error_cursor=$(build_event_cursor "$stage_idx" "$iteration" "$((run_idx + 1))")
+        local error_data
+        error_data=$(jq -n \
+          --arg message "$error_msg" \
+          --argjson code "$exit_code" \
+          --arg stage "$stage_name" \
+          '{message: $message, exit_code: $code, stage: $stage}')
+        emit_event_or_warn "error" "$session" "$error_cursor" "$error_data" || true
 
         # Write error status to iteration
         create_error_status "$status_file" "$error_msg"
@@ -756,6 +994,17 @@ run_pipeline() {
       local history_json=$(status_to_history_json "$status_file")
       update_iteration "$state_file" "$iteration" "$history_json" "$stage_name"
       mark_iteration_completed "$state_file" "$iteration"
+      local iter_decision
+      local iter_reason
+      iter_decision=$(get_status_decision "$status_file")
+      iter_reason=$(get_status_reason "$status_file")
+      local iter_complete_data
+      iter_complete_data=$(jq -n \
+        --arg status "$status_file" \
+        --arg decision "$iter_decision" \
+        --arg reason "$iter_reason" \
+        '{status_file: $status, decision: $decision, reason: $reason}')
+      emit_event_or_warn "iteration_complete" "$session" "$iter_cursor" "$iter_complete_data" || true
 
       # Check completion (v3: pass status file path)
       if [ -n "$stage_completion" ] && type check_completion &>/dev/null; then
@@ -777,16 +1026,36 @@ run_pipeline() {
       echo "  This indicates a bug in the pipeline configuration or engine"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo ""
+      local error_cursor
+      error_cursor=$(build_event_cursor "$stage_idx" 0 0)
+      local error_data
+      error_data=$(jq -n \
+        --arg message "Stage '$stage_name' completed zero iterations" \
+        --arg stage "$stage_name" \
+        '{message: $message, stage: $stage}')
+      emit_event_or_warn "error" "$session" "$error_cursor" "$error_data" || true
       update_stage "$state_file" "$stage_idx" "$stage_name" "failed"
       mark_failed "$state_file" "Stage '$stage_name' completed zero iterations" "zero_iterations"
       return 1
     fi
 
     update_stage "$state_file" "$stage_idx" "$stage_name" "complete"
+    local stage_complete_cursor
+    stage_complete_cursor=$(event_cursor_from_state "$state_file")
+    local stage_complete_data
+    stage_complete_data=$(jq -n \
+      --arg name "$stage_name" \
+      '{name: $name, status: "complete"}')
+    emit_event_or_warn "node_complete" "$session" "$stage_complete_cursor" "$stage_complete_data" || true
     echo ""
   done
 
   mark_complete "$state_file" "all_loops_complete"
+  local session_complete_cursor
+  session_complete_cursor=$(event_cursor_from_state "$state_file")
+  local session_complete_data
+  session_complete_data=$(jq -n --arg reason "all_loops_complete" '{reason: $reason}')
+  emit_event_or_warn "session_complete" "$session" "$session_complete_cursor" "$session_complete_data" || true
 
   echo "╔══════════════════════════════════════════════════════════════╗"
   echo "║  PIPELINE COMPLETE                                           ║"
