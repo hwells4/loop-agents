@@ -50,6 +50,9 @@ fi
 # Export for hooks
 export CLAUDE_PIPELINE_AGENT=1
 
+# Event spine mode (defaults to enabled for new sessions)
+EVENT_SPINE_ENABLED="true"
+
 #-------------------------------------------------------------------------------
 # Event Helpers
 #-------------------------------------------------------------------------------
@@ -107,6 +110,10 @@ emit_event_or_warn() {
   local cursor_json=${3:-"null"}
   local data_json=${4:-"{}"}
 
+  if [ "${EVENT_SPINE_ENABLED:-true}" != "true" ]; then
+    return 0
+  fi
+
   if [ -z "$cursor_json" ]; then
     cursor_json="null"
   fi
@@ -118,6 +125,53 @@ emit_event_or_warn() {
     echo "Warning: Failed to append event '$type' for session '$session'" >&2
     return 1
   fi
+}
+
+# Determine whether to use event-sourced mode for a session.
+# Usage: configure_event_spine "$state_file" "$events_file"
+configure_event_spine() {
+  local state_file=$1
+  local events_file=$2
+
+  EVENT_SPINE_ENABLED="true"
+
+  if [ "${AGENT_PIPELINES_LEGACY:-}" = "1" ]; then
+    EVENT_SPINE_ENABLED="false"
+    return 0
+  fi
+
+  if [ -f "$events_file" ]; then
+    EVENT_SPINE_ENABLED="true"
+    return 0
+  fi
+
+  if [ -f "$state_file" ]; then
+    EVENT_SPINE_ENABLED="false"
+    return 0
+  fi
+
+  EVENT_SPINE_ENABLED="true"
+}
+
+maybe_reconcile_events() {
+  local session=$1
+  local state_file=$2
+  local events_file=$3
+  local session_type=${4:-""}
+
+  if [ "$EVENT_SPINE_ENABLED" != "true" ]; then
+    return 0
+  fi
+
+  if [ ! -f "$events_file" ]; then
+    return 0
+  fi
+
+  if is_locked "$session"; then
+    return 0
+  fi
+
+  reconcile_with_events "$state_file" "$events_file" "$session" "$session_type"
 }
 
 #-------------------------------------------------------------------------------
@@ -1165,6 +1219,14 @@ case "$MODE" in
     # Determine run directory and state file for pipeline
     RUN_DIR="$PROJECT_ROOT/.claude/pipeline-runs/$SESSION"
     STATE_FILE="$RUN_DIR/state.json"
+    EVENTS_FILE="$RUN_DIR/events.jsonl"
+    SESSION_TYPE="pipeline"
+    if [ "$SINGLE_STAGE" = "true" ]; then
+      SESSION_TYPE="loop"
+    fi
+
+    configure_event_spine "$STATE_FILE" "$EVENTS_FILE"
+    maybe_reconcile_events "$SESSION" "$STATE_FILE" "$EVENTS_FILE" "$SESSION_TYPE"
 
     # Check for existing/failed session (only if state file exists)
     if [ -f "$STATE_FILE" ]; then
@@ -1215,6 +1277,13 @@ case "$MODE" in
     fi
     STATE_FILE=$(get_state_file_path "$SESSION")
     RUN_DIR="$PROJECT_ROOT/.claude/pipeline-runs/$SESSION"
+    EVENTS_FILE="$RUN_DIR/events.jsonl"
+    SESSION_TYPE=""
+    if [ -f "$STATE_FILE" ]; then
+      SESSION_TYPE=$(jq -r '.type // empty' "$STATE_FILE" 2>/dev/null)
+    fi
+    configure_event_spine "$STATE_FILE" "$EVENTS_FILE"
+    maybe_reconcile_events "$SESSION" "$STATE_FILE" "$EVENTS_FILE" "$SESSION_TYPE"
 
     status=$(get_session_status "$SESSION" "$STATE_FILE")
     echo "Session: $SESSION"
