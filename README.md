@@ -1,10 +1,8 @@
 # Agent Pipelines
 
-n8n for [Ralph loops](https://ghuntley.com/ralph/). Agent Pipelines is a Claude Code plugin with a custom engine for managing and Ralph Loops
+Agent Pipelines is a Claude Code plugin for building and running [Ralph Loops](https://ghuntley.com/ralph/). It adds a composable engine that lets you:
 
-It builds loops on top of a powerful engine, letting you 
-
-- **Build a stage and loop on anything.** Plan files, task queues, codebases, URL lists, CSVs. Whatever.
+- **Loop on anything.** Each stage can iterate on plan files, task queues, codebases, URL lists, CSVs. Whatever.
 - **Chain stages together.** Planning → task refinement → implementation.
 - **Mix providers across stages.** Use Claude for planning and Codex for implementation in the same workflow.
 - **Run providers in parallel.** Spin up Claude and Codex on the same stage, have each iterate separately, then synthesize the results.
@@ -30,6 +28,9 @@ claude plugin install agent-pipelines@dodo-digital
 │ judgment stop   │     │ judgment stop   │     │ queue stop      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
+## This is a Pipeline
+
+Each stage in a pipeline is its own Ralph loop. It takes inputs, manages its own state, and when it finishes, passes outputs and accumulated learnings to the next stage. The stages are independent, so one can use Claude for planning while the next uses Codex for implementation.
 
 Each iteration spawns a fresh agent that reads a progress file containing accumulated learnings, patterns discovered, and work completed.
 
@@ -89,13 +90,9 @@ Sometimes you want multiple perspectives on the same problem. Parallel blocks le
 
 Each provider runs in isolation with its own progress file, so they don't influence each other mid-loop. The orchestrator waits for all providers to finish before moving to the next stage.
 
-## Philosophy
+## More Than Work
 
-A common failure mode: you write a plan, run a Ralph loop, and the agent executes incorrectly because the plan wasn't good enough. You can solve this by running a Ralph loop on the plan itself, allowing it to iterate until two agents agree the plan is fully fleshed out.
-
-The same pattern applies elsewhere. Bug reviews benefit from multiple passes where agents look with fresh eyes each time. Web research loops can ensure citations are correct and you're pulling in the right context from varied sources. There are many use cases beyond just completing coding work.
-
-But these workflows need more flexibility than a basic Ralph loop provides. The engine gives you that flexibility. Different termination strategies, the ability to chain stages together, parallel execution across providers. You can build truly autonomous workflows and iterate on them.
+Ralph loops can do more than implement tasks. Try them for plan refinement, bug review, research iteration, or codebase exploration. Anywhere multiple passes improve quality, loops help.
 
 ---
 
