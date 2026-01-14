@@ -24,16 +24,8 @@ STAGES_DIR="${STAGES_DIR:-$SCRIPT_DIR/stages}"
 export PROJECT_ROOT
 
 # Check dependencies
-for cmd in jq claude; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "Error: Missing required command: $cmd" >&2
-    case "$cmd" in
-      jq) echo "  Install: brew install jq" >&2 ;;
-      claude) echo "  Install: npm install -g @anthropic-ai/claude-code" >&2 ;;
-    esac
-    exit 1
-  fi
-done
+source "$LIB_DIR/deps.sh"
+check_deps
 
 # Source libraries
 source "$LIB_DIR/yaml.sh"
@@ -72,6 +64,9 @@ run_stage() {
   local start_iteration=${6:-1}
 
   load_stage "$stage_type" || return 1
+  if [ "$STAGE_COMPLETION" = "beads-empty" ]; then
+    check_deps --require-bd || return 1
+  fi
 
   # Check provider is available (once at session start, not per iteration)
   check_provider "$STAGE_PROVIDER" || return 1
@@ -417,6 +412,11 @@ run_pipeline() {
         --arg provider "$default_provider" \
         --arg model "$default_model" \
         '{provider: $provider, model: $model}')
+      local block_needs_bd=""
+      block_needs_bd=$(echo "$block_config" | jq -r '[.parallel.stages[]?.termination.type // empty] | any(. == "queue")')
+      if [ "$block_needs_bd" = "true" ]; then
+        check_deps --require-bd || return 1
+      fi
 
       # Run parallel block
       if ! run_parallel_block "$stage_idx" "$block_config" "$defaults_json" "$state_file" "$run_dir" "$session"; then
@@ -460,6 +460,9 @@ run_pipeline() {
     else
       # Bug fix: loop-agents-qnx - Inline prompt stages default to fixed-n termination
       [ -z "$stage_completion" ] && stage_completion="fixed-n"
+    fi
+    if [ "$stage_completion" = "beads-empty" ]; then
+      check_deps --require-bd || return 1
     fi
 
     # Check provider is available (once per stage, not per iteration)
