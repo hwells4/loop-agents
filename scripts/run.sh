@@ -1,6 +1,6 @@
 #!/bin/bash
 # Unified Entry Point
-# Usage: run.sh <loop|pipeline|lint|dry-run|status> ...
+# Usage: run.sh <loop|pipeline|lint|dry-run|status|tail> ...
 #
 # Everything is a pipeline. A "loop" is just a single-stage pipeline.
 #
@@ -12,6 +12,7 @@
 #   ./run.sh lint loop work           # Validate specific loop
 #   ./run.sh dry-run loop work auth   # Preview loop execution
 #   ./run.sh status auth              # Check session status
+#   ./run.sh tail auth                # Stream session events
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
@@ -91,6 +92,7 @@ show_help() {
   echo "  dry-run <loop|pipeline> <name> [session]  Preview execution"
   echo "  test [name] [--verbose]         Run tests (all or specific)"
   echo "  status <session>                Check session status"
+  echo "  tail <session> [lines]          Stream event log"
   echo ""
   echo "Flags:"
   echo "  --foreground                    Run in foreground instead of tmux (default: tmux)"
@@ -224,41 +226,39 @@ case "$1" in
       echo "Usage: run.sh status <session>"
       exit 1
     fi
-    # All sessions are now in pipeline-runs
-    lock_file=".claude/locks/${session}.lock"
-    state_file=".claude/pipeline-runs/${session}/state.json"
-
-    if [ ! -f "$lock_file" ] && [ ! -f "$state_file" ]; then
-      echo "No session found: $session"
+    source "$LIB_DIR/events.sh"
+    if ! events_print_status "$session"; then
       exit 1
     fi
+    exit 0
+    ;;
 
-    if [ -f "$lock_file" ]; then
-      pid=$(jq -r '.pid' "$lock_file" 2>/dev/null)
-      started=$(jq -r '.started_at' "$lock_file" 2>/dev/null)
-
-      if kill -0 "$pid" 2>/dev/null; then
-        echo "Session '$session' is RUNNING"
-        echo "  PID: $pid"
-        echo "  Started: $started"
-      else
-        echo "Session '$session' has CRASHED (stale lock)"
-        echo "  PID: $pid (dead)"
-        echo "  Started: $started"
-        echo "  Use --resume to continue"
+  tail)
+    shift
+    session=$1
+    if [ -z "$session" ]; then
+      echo "Usage: run.sh tail <session> [lines]"
+      exit 1
+    fi
+    source "$LIB_DIR/events.sh"
+    lines=${2:-${EVENTS_TAIL_LINES:-50}}
+    if ! [[ "$lines" =~ ^[0-9]+$ ]]; then
+      lines=${EVENTS_TAIL_LINES:-50}
+    fi
+    run_root=$(events_default_run_root)
+    events_file="$run_root/$session/events.jsonl"
+    if [ ! -f "$events_file" ]; then
+      echo "No events found: $session"
+      exit 1
+    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+      [ -z "$line" ] && continue
+      if ! echo "$line" | jq -e '.' >/dev/null 2>&1; then
+        continue
       fi
-    fi
-
-    if [ -f "$state_file" ]; then
-      iteration=$(jq -r '.iteration // .current_stage // 0' "$state_file" 2>/dev/null)
-      completed=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
-      status=$(jq -r '.status' "$state_file" 2>/dev/null)
-      loop_type=$(jq -r '.loop_type // .stages[0].name // "unknown"' "$state_file" 2>/dev/null)
-      echo "  Type: $loop_type"
-      echo "  Iteration: $iteration (completed: $completed)"
-      echo "  Status: $status"
-      echo "  Run dir: .claude/pipeline-runs/$session/"
-    fi
+      formatted=$(events_format_event_line "$line")
+      [ -n "$formatted" ] && echo "$formatted"
+    done < <(tail -n "$lines" -F "$events_file")
     exit 0
     ;;
 
