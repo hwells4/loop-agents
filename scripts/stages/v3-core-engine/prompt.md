@@ -50,14 +50,19 @@ This is the **core engine** without hooks or library features (those come later)
 
 7. Implement that ONE task following the v3 plan
 
-8. **Run tests** (use commands from context.json if available):
+8. **Run tests after every change:**
    ```bash
-   # Run the test suite
-   ./scripts/tests/run_tests.sh 2>/dev/null || echo "Test suite not yet created"
+   # REQUIRED: Run the test suite - DO NOT skip this
+   ./scripts/tests/run_tests.sh
 
-   # Validate with lint
-   ./scripts/run.sh lint 2>/dev/null || echo "Lint not available yet"
+   # If the test runner path changed, find it:
+   # find scripts -name "run_tests.sh" -o -name "*_test.sh" | head -5
+
+   # Also run lint validation
+   ./scripts/run.sh lint
    ```
+
+   **IMPORTANT:** All tests must pass before closing a bead. If tests fail, fix them before proceeding.
 
 9. Commit: `feat(v3): [bead-id] - [Title]`
 
