@@ -97,12 +97,14 @@ EOF
 
   export MIN_ITERATIONS=1
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should NOT complete: only 1 stop for refine-tasks (current), need 2
   # The 2 stops from improve-plan should be ignored
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Plateau should NOT trigger - previous stage stops should be ignored"
 
   rm -rf "$test_dir"
@@ -146,11 +148,13 @@ EOF
 
   export MIN_ITERATIONS=1
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should complete: 2 consecutive stops for refine-tasks in history (iterations 1 and 2)
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "0" "$result" "Plateau should trigger when same stage has consecutive stops"
 
   rm -rf "$test_dir"
@@ -196,11 +200,13 @@ EOF
 
   export MIN_ITERATIONS=1
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should complete: stage-b has 2 consecutive stops in history (iterations 2 and 3)
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "0" "$result" "Plateau should work with interleaved stage history"
 
   rm -rf "$test_dir"
@@ -239,11 +245,13 @@ EOF
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should complete: 2 consecutive stops in history (iterations 2 and 3)
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "0" "$result" "Plateau should work for single-stage loops with empty stage field"
 
   rm -rf "$test_dir"
@@ -283,11 +291,13 @@ EOF
 
   export MIN_ITERATIONS=2
   export CONSENSUS=1
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should NOT complete: iteration 1 < min_iterations 2
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Plateau should respect min_iterations"
 
   rm -rf "$test_dir"

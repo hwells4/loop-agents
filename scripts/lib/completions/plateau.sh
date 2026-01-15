@@ -4,9 +4,10 @@
 # Prevents single-agent blind spots
 #
 # v3: Reads from result.json (or legacy status.json) instead of parsing output text
-# v3.1: Optionally uses external judge (Haiku) for better trend detection
+# v3.1: Uses external judge (Haiku) for trend detection across iteration history
 #
-# Set USE_JUDGE=true to enable external judge evaluation
+# Judge is always enabled for judgment type - this is the whole point of having
+# a separate evaluator rather than asking workers to decide if they're done.
 
 PLATEAU_SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$PLATEAU_SCRIPT_DIR/../result.sh"
@@ -93,13 +94,16 @@ check_completion() {
     return 1
   fi
 
-  # Determine decision source: external judge or worker signal
+  # Use external judge (Haiku) for decision - always enabled for judgment type
+  # Test mode: Set PLATEAU_TEST_MODE=1 to bypass judge (for unit tests without API)
   local decision=""
   local reason=""
-  local use_judge="${USE_JUDGE:-false}"
 
-  if [ "$use_judge" = "true" ] && _plateau_load_judge; then
-    # Use external judge (Haiku) for decision
+  if [ "${PLATEAU_TEST_MODE:-}" = "1" ]; then
+    # Test mode: read decision from history (for testing consensus logic)
+    decision=$(result_decision_hint "$result_file")
+    reason=$(result_reason_hint "$result_file")
+  elif _plateau_load_judge; then
     local progress_file=$(jq -r '.progress_file // ""' "$state_file" 2>/dev/null)
     local stage_name=$(jq -r '.stages[.current_stage // 0].name // "stage"' "$state_file" 2>/dev/null)
     local iter_dir=$(dirname "$result_file")
@@ -107,7 +111,8 @@ check_completion() {
     decision=$(_plateau_judge_decision "$session" "$iteration" "$result_file" "$progress_file" "$stage_name" "$iter_dir")
     reason="Judge evaluation based on iteration history"
   else
-    # Read current decision from result.json (fallback to status.json)
+    # Fallback to worker signal if judge.sh not available (shouldn't happen)
+    echo "Warning: judge.sh not found, falling back to worker signal" >&2
     decision=$(result_decision_hint "$result_file")
     reason=$(result_reason_hint "$result_file")
   fi
