@@ -61,25 +61,27 @@ bd create --title="[Solution title]" --type=bug --priority=2 --label="pipeline/$
 
 Use priority 0-1 for critical, 2 for should-fix, 3 for nice-to-have.
 
-## Write Status
+## Write Result
 
-After completing your analysis, write your status to `${STATUS}`:
+After completing your analysis, write your result to `${RESULT}` (set `signals.plateau_suspected` true when further analysis would yield diminishing returns):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "Why there's more to analyze or why you've found what there is to find",
   "summary": "Sharp observations—what patterns you found, what elegant consolidations emerged",
   "work": {
     "items_completed": [],
     "files_touched": []
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision guide:**
-- `"continue"` - More patterns to investigate, elegant solutions still emerging
-- `"stop"` - You've synthesized what there is to synthesize; further analysis would yield diminishing returns
 
 Use ultrathink.

@@ -124,16 +124,15 @@ bd ready --label=pipeline/v3 --label-any=phase/1-foundation,phase/2-node-executo
 # Returns nothing = done
 ```
 
-Write to `${STATUS}`:
+Write to `${RESULT}`:
 
 ```json
 {
-  "decision": "stop",
-  "reason": "All v3 core engine tasks complete (phases 1-6)",
   "summary": "Queue empty - core engine ready, hooks/library phases can proceed",
   "work": {"items_completed": [], "files_touched": []},
-  "errors": []
+  "artifacts": {"outputs": [], "paths": []},
+  "signals": {"plateau_suspected": true, "risk": "low", "notes": "All v3 core engine tasks complete (phases 1-6)"}
 }
 ```
 
-Otherwise, write `"decision": "continue"` and end normally.
+Otherwise, set `"signals.plateau_suspected": false` and end normally.

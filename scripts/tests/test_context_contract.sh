@@ -34,7 +34,7 @@ test_context_schema_stable() {
 
   local path_keys
   path_keys=$(jq -r '.paths | keys_unsorted | sort | join(",")' "$context_file")
-  assert_eq "output,progress,session_dir,stage_dir,status" \
+  assert_eq "output,progress,result,session_dir,stage_dir,status" \
     "$path_keys" "paths map retains stable schema"
 
   local input_keys

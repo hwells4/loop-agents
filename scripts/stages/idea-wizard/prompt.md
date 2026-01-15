@@ -99,26 +99,28 @@ Format:
 
 Append a summary to the progress file noting what ideas you generated.
 
-### Step 7: Write Status
+### Step 7: Write Result
 
-After completing your work, write your status to `${STATUS}`:
+After completing your work, write your result to `${RESULT}`:
 
 ```json
 {
-  "decision": "continue",
-  "reason": "Generated ideas for iteration ${ITERATION}",
   "summary": "Brief description of the themes you explored",
   "work": {
     "items_completed": [],
     "files_touched": ["${OUTPUT_PATH}"]
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision guide:**
-- `"continue"` - More iterations to go (this stage runs a fixed number of times)
-- `"error"` - Something went wrong
 
 ## Important
 

@@ -166,43 +166,28 @@ If you have actionable findings, edit `tdd-prose-plan.md` directly:
 
 ---
 
-## Step 6: Write Status
+## Step 6: Write Result
 
-Write your decision to `${STATUS}`:
+Write your result to `${RESULT}` (set `signals.plateau_suspected` true when research is complete and remaining changes are cosmetic):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "Brief explanation of what still needs research or refinement",
   "summary": "One paragraph describing this iteration's findings and changes",
   "work": {
     "items_completed": ["Researched X", "Updated section Y"],
     "files_touched": ["tdd-prose-plan.md"]
   },
-  "research": {
-    "repos_analyzed": [],
-    "tools_evaluated": [],
-    "models_considered": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
   },
-  "errors": []
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision Guide:**
-
-- `"continue"` if:
-  - Major research areas remain unexplored
-  - Findings suggest significant simplification opportunities
-  - External repos have patterns we haven't fully analyzed
-
-- `"stop"` if:
-  - All research targets have been analyzed
-  - Plan reflects the best available local-first approach
-  - Remaining improvements are cosmetic, not architectural
-
-- `"error"` if:
-  - Can't access critical resources
-  - Findings contradict plan fundamentally (needs human decision)
 
 ---
 

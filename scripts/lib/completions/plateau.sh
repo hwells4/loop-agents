@@ -3,12 +3,14 @@
 # Requires N consecutive agents to write decision: stop
 # Prevents single-agent blind spots
 #
-# v3: Reads from status.json instead of parsing output text
+# v3: Reads from result.json (or legacy status.json) instead of parsing output text
+
+source "$(dirname "${BASH_SOURCE[0]}")/../result.sh"
 
 check_completion() {
   local session=$1
   local state_file=$2
-  local status_file=$3  # v3: Now receives status file path
+  local result_file=$3  # v3: Now receives result file path
 
   # Get configurable consensus count (default 2)
   local consensus_needed=${CONSENSUS:-2}
@@ -22,15 +24,16 @@ check_completion() {
     return 1
   fi
 
-  # Read current decision from status.json
-  local decision=$(get_status_decision "$status_file")
-  local reason=$(get_status_reason "$status_file")
+  # Read current decision from result.json (fallback to status.json)
+  local decision=$(result_decision_hint "$result_file")
+  local reason=$(result_reason_hint "$result_file")
+  local resolved
+  resolved=$(result_resolve_file "$result_file" || true)
 
   # Check if agent reported error - stop the loop on error
   # (Bug fix: loop-agents-r5x - consistent with fixed-n.sh behavior)
-  # Only check for error if the status file actually exists
-  # (get_status_decision returns "error" for missing files as fallback)
-  if [ -f "$status_file" ] && [ "$decision" = "error" ]; then
+  # Only check for error if the result/status file actually exists
+  if [ -f "$resolved" ] && [ "$decision" = "error" ]; then
     echo "Agent reported error - stopping loop"
     echo "  Reason: $reason"
     return 0

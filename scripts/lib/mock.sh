@@ -14,7 +14,8 @@
 #   ├── default.txt         # Fallback response
 #   ├── iteration-1.txt     # Response for iteration 1
 #   ├── iteration-2.txt     # Response for iteration 2
-#   └── status.json         # Expected status format (for validation)
+#   ├── result.json         # Expected result format (for validation)
+#   └── status.json         # Legacy status format (for compatibility)
 
 # Mock mode state (preserve exported values if set)
 MOCK_MODE=${MOCK_MODE:-false}
@@ -96,7 +97,7 @@ Mock response - no fixture found.
 Completed mock iteration.
 
 ## Status
-Written to status.json with decision: continue
+Written to result.json with plateau_suspected: false
 EOF
 }
 
@@ -116,12 +117,88 @@ This is a mock response for testing purposes.
 - Updated state
 
 ## Status
-Written to status.json with decision: continue
+Written to result.json with plateau_suspected: false
 EOF
 }
 
 #-------------------------------------------------------------------------------
-# v3 Status File Support
+# v3 Result File Support
+#-------------------------------------------------------------------------------
+
+# Get mock result.json content for an iteration
+# Usage: result_json=$(get_mock_result 1)
+get_mock_result() {
+  local iteration=${1:-1}
+
+  # Try iteration-specific result
+  local iter_result="$MOCK_FIXTURES_DIR/result-${iteration}.json"
+  if [ -f "$iter_result" ]; then
+    cat "$iter_result"
+    return 0
+  fi
+
+  # Try fixture directory's result.json template
+  local result_template="$MOCK_FIXTURES_DIR/result.json"
+  if [ -f "$result_template" ]; then
+    cat "$result_template"
+    return 0
+  fi
+
+  # Fall back to status fixtures if available
+  local status_json=""
+  if status_json=$(get_mock_status "$iteration" 2>/dev/null); then
+    if [ -n "$status_json" ]; then
+      mock_result_from_status_json "$status_json"
+      return 0
+    fi
+  fi
+
+  # Generate default result
+  generate_default_result
+}
+
+# Generate a result.json for mock execution
+generate_default_result() {
+  cat << EOF
+{
+  "summary": "Mock iteration $MOCK_ITERATION completed",
+  "work": {"items_completed": [], "files_touched": []},
+  "artifacts": {"outputs": [], "paths": []},
+  "signals": {"plateau_suspected": false, "risk": "low", "notes": ""}
+}
+EOF
+}
+
+# Convert a status.json payload into result.json schema.
+mock_result_from_status_json() {
+  local status_json=$1
+
+  echo "$status_json" | jq -c '{
+    summary: (.summary // ""),
+    work: {
+      items_completed: (.work.items_completed // []),
+      files_touched: (.work.files_touched // [])
+    },
+    artifacts: {outputs: [], paths: []},
+    signals: {
+      plateau_suspected: ((.decision // "") == "stop"),
+      risk: (if ((.decision // "") == "error" or (.errors // [] | length > 0)) then "high" else "low" end),
+      notes: (if (.reason // "") != "" then .reason else (.errors[0] // "") end)
+    }
+  }'
+}
+
+# Write mock result to a file
+# Usage: write_mock_result "/path/to/result.json" 1
+write_mock_result() {
+  local result_file=$1
+  local iteration=${2:-1}
+
+  get_mock_result "$iteration" > "$result_file"
+}
+
+#-------------------------------------------------------------------------------
+# Legacy Status File Support
 #-------------------------------------------------------------------------------
 
 # Get mock status.json content for an iteration

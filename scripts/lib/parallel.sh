@@ -8,7 +8,14 @@
 #   run_parallel_provider - Run stages for a single provider (called in subshell)
 #   run_parallel_block - Orchestrate parallel providers, wait, build manifest
 #
-# Dependencies: state.sh, context.sh, provider.sh, status.sh, resolve.sh, progress.sh
+# Dependencies: state.sh, context.sh, provider.sh, result.sh, resolve.sh, progress.sh
+
+PARALLEL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${LIB_DIR:-$PARALLEL_SCRIPT_DIR}"
+
+if [ -f "$LIB_DIR/result.sh" ]; then
+  source "$LIB_DIR/result.sh"
+fi
 
 #-------------------------------------------------------------------------------
 # Parallel Provider Execution
@@ -135,6 +142,7 @@ run_parallel_provider() {
         echo "$ctx_config" > "$context_file"
       fi
       local status_file="$iter_dir/status.json"
+      local result_file="$iter_dir/result.json"
 
       # Build variables for prompt resolution
       local vars_json=$(jq -n \
@@ -144,8 +152,9 @@ run_parallel_provider() {
         --arg progress "$progress_file" \
         --arg context_file "$context_file" \
         --arg status_file "$status_file" \
+        --arg result_file "$result_file" \
         --arg context "$stage_context" \
-        '{session: $session, iteration: $iteration, index: $index, progress: $progress, context_file: $context_file, status_file: $status_file, context: $context}')
+        '{session: $session, iteration: $iteration, index: $index, progress: $progress, context_file: $context_file, status_file: $status_file, result_file: $result_file, context: $context}')
 
       # Resolve prompt
       local resolved_prompt=""
@@ -162,6 +171,7 @@ run_parallel_provider() {
 
       # Export status file path for mock mode
       export MOCK_STATUS_FILE="$status_file"
+      export MOCK_RESULT_FILE="$result_file"
       export MOCK_ITERATION="$iter"
       export MOCK_PROVIDER="$provider"
 
@@ -188,27 +198,34 @@ run_parallel_provider() {
       # Save output
       [ -n "$output" ] && echo "$output" > "$iter_dir/output.md"
 
-      # Create default status if not written
-      if [ ! -f "$status_file" ]; then
-        if type create_error_status &>/dev/null; then
-          create_error_status "$status_file" "Agent did not write status.json"
-        else
-          # Fallback: create default continue status
-          echo '{"decision": "continue", "reason": "default", "summary": "mock iteration"}' > "$status_file"
+      if [ ! -f "$result_file" ] && [ -f "$status_file" ]; then
+        local converted_result
+        if converted_result=$(result_from_status "$status_file"); then
+          result_write_atomic "$result_file" "$converted_result"
         fi
       fi
 
-      # Validate status
-      if type validate_status &>/dev/null && ! validate_status "$status_file"; then
-        create_error_status "$status_file" "Agent wrote invalid status.json"
+      # Create default result if not written
+      if [ ! -f "$result_file" ]; then
+        if type create_error_result &>/dev/null; then
+          create_error_result "$result_file" "Agent did not write result.json"
+        else
+          # Fallback: minimal valid result
+          echo '{"summary":"mock iteration","work":{"items_completed":[],"files_touched":[]},"artifacts":{"outputs":[],"paths":[]},"signals":{"plateau_suspected":false,"risk":"low","notes":""}}' > "$result_file"
+        fi
       fi
 
-      # Extract status for history and completion check
+      # Validate result
+      if type validate_result &>/dev/null && ! validate_result "$result_file"; then
+        create_error_result "$result_file" "Agent wrote invalid result.json"
+      fi
+
+      # Extract result for history and completion check
       local history_entry
-      if type status_to_history_json &>/dev/null; then
-        history_entry=$(status_to_history_json "$status_file")
+      if type result_to_history_json &>/dev/null; then
+        history_entry=$(result_to_history_json "$result_file")
       else
-        history_entry=$(jq -c '{decision: .decision, reason: .reason}' "$status_file" 2>/dev/null || echo '{"decision":"continue"}')
+        history_entry=$(jq -c '{summary: .summary}' "$result_file" 2>/dev/null || echo '{"summary":"unknown"}')
       fi
       stage_history=$(echo "$stage_history" | jq --argjson entry "$history_entry" '. + [$entry]')
 

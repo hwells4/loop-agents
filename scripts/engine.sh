@@ -34,6 +34,7 @@ source "$LIB_DIR/progress.sh"
 source "$LIB_DIR/resolve.sh"
 source "$LIB_DIR/context.sh"
 source "$LIB_DIR/status.sh"
+source "$LIB_DIR/result.sh"
 source "$LIB_DIR/notify.sh"
 source "$LIB_DIR/lock.sh"
 source "$LIB_DIR/validate.sh"
@@ -322,14 +323,16 @@ run_stage() {
       --arg stage_idx "$stage_idx" \
       --arg context_file "$context_file" \
       --arg status_file "$(dirname "$context_file")/status.json" \
+      --arg result_file "$(dirname "$context_file")/result.json" \
       --arg context "$STAGE_CONTEXT" \
-      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file, context: $context}')
+      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file, result_file: $result_file, context: $context}')
 
     # Resolve prompt
     local resolved_prompt=$(resolve_prompt "$STAGE_PROMPT" "$vars_json")
 
-    # Export status file path for mock mode (mock.sh needs to know where to write status)
+    # Export result/status paths for mock mode (mock.sh needs to know where to write outputs)
     export MOCK_STATUS_FILE="$(dirname "$context_file")/status.json"
+    export MOCK_RESULT_FILE="$(dirname "$context_file")/result.json"
     export MOCK_ITERATION="$i"
 
     # Execute agent
@@ -341,6 +344,7 @@ run_stage() {
     # Get iteration directory path (from context file location)
     local iter_dir="$(dirname "$context_file")"
     local status_file="$iter_dir/status.json"
+    local result_file="$iter_dir/result.json"
 
     # Phase 5: Fail fast - no retries, immediate failure with clear state
     if [ $exit_code -ne 0 ]; then
@@ -356,7 +360,7 @@ run_stage() {
       emit_event_or_warn "error" "$session" "$error_cursor" "$error_data" || true
 
       # Write error status to iteration
-      create_error_status "$status_file" "$error_msg"
+      create_error_result "$result_file" "$error_msg"
 
       # Update state with structured failure info
       mark_failed "$state_file" "$error_msg" "exit_code"
@@ -379,19 +383,26 @@ run_stage() {
       echo "$output" > "$iter_dir/output.md"
     fi
 
-    # Phase 3: Create error status if agent didn't write status.json
-    if [ ! -f "$status_file" ]; then
-      create_error_status "$status_file" "Agent did not write status.json"
+    # Phase 3: Create error result if agent didn't write result.json
+    if [ ! -f "$result_file" ] && [ -f "$status_file" ]; then
+      local converted_result
+      if converted_result=$(result_from_status "$status_file"); then
+        result_write_atomic "$result_file" "$converted_result"
+      fi
     fi
 
-    # Validate status.json before using it (fail fast on malformed JSON)
-    if ! validate_status "$status_file"; then
-      echo "Warning: Invalid status.json - creating error status" >&2
-      create_error_status "$status_file" "Agent wrote invalid status.json"
+    if [ ! -f "$result_file" ]; then
+      create_error_result "$result_file" "Agent did not write result.json"
     fi
 
-    # Extract status data for state history
-    local history_json=$(status_to_history_json "$status_file")
+    # Validate result.json before using it
+    if ! validate_result "$result_file"; then
+      echo "Warning: Invalid result.json - creating error result" >&2
+      create_error_result "$result_file" "Agent wrote invalid result.json"
+    fi
+
+    # Extract result data for state history
+    local history_json=$(result_to_history_json "$result_file")
 
     # Update state - mark iteration completed with status data
     # Pass stage name for multi-stage plateau filtering
@@ -399,19 +410,19 @@ run_stage() {
     mark_iteration_completed "$state_file" "$i"
     local iter_decision
     local iter_reason
-    iter_decision=$(get_status_decision "$status_file")
-    iter_reason=$(get_status_reason "$status_file")
+    iter_decision=$(result_decision_hint "$result_file")
+    iter_reason=$(result_reason_hint "$result_file")
     local iter_complete_data
     iter_complete_data=$(jq -n \
-      --arg status "$status_file" \
+      --arg result "$result_file" \
       --arg decision "$iter_decision" \
       --arg reason "$iter_reason" \
-      '{status_file: $status, decision: $decision, reason: $reason}')
+      '{result_file: $result, decision: $decision, reason: $reason}')
     emit_event_or_warn "iteration_complete" "$session" "$iter_cursor" "$iter_complete_data" || true
 
-    # Post-iteration completion check (v3: pass status file path)
-    if check_completion "$session" "$state_file" "$status_file"; then
-      local reason=$(check_completion "$session" "$state_file" "$status_file" 2>&1)
+    # Post-iteration completion check (v3: pass result file path)
+    if check_completion "$session" "$state_file" "$result_file"; then
+      local reason=$(check_completion "$session" "$state_file" "$result_file" 2>&1)
       echo ""
       echo "$reason"
       mark_complete "$state_file" "$reason"
@@ -943,6 +954,7 @@ run_pipeline() {
       local context_file=$(generate_context "$session" "$iteration" "$stage_config_json" "$run_dir")
       local iter_dir="$(dirname "$context_file")"
       local status_file="$iter_dir/status.json"
+      local result_file="$iter_dir/result.json"
 
       # Determine output file
       local output_file
@@ -970,8 +982,9 @@ run_pipeline() {
         --arg stage_idx "$stage_idx" \
         --arg context_file "$context_file" \
         --arg status_file "$status_file" \
+        --arg result_file "$result_file" \
         --arg context "$stage_context" \
-        '{session: $session, iteration: $iteration, index: $index, perspective: $perspective, output: $output, progress: $progress, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file, context: $context}')
+        '{session: $session, iteration: $iteration, index: $index, perspective: $perspective, output: $output, progress: $progress, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file, result_file: $result_file, context: $context}')
 
       # Resolve prompt
       local resolved_prompt=$(resolve_prompt "$stage_prompt" "$vars_json")
@@ -989,8 +1002,9 @@ run_pipeline() {
         '{stage: $stage, type: $type, provider: $provider, model: $model}')
       emit_event_or_warn "iteration_start" "$session" "$iter_cursor" "$iter_start_data" || true
 
-      # Export status file path for mock mode (mock.sh needs to know where to write status)
+      # Export result/status paths for mock mode (mock.sh needs to know where to write outputs)
       export MOCK_STATUS_FILE="$status_file"
+      export MOCK_RESULT_FILE="$result_file"
       export MOCK_ITERATION="$iteration"
 
       # Execute agent
@@ -1013,7 +1027,7 @@ run_pipeline() {
         emit_event_or_warn "error" "$session" "$error_cursor" "$error_data" || true
 
         # Write error status to iteration
-        create_error_status "$status_file" "$error_msg"
+        create_error_result "$result_file" "$error_msg"
 
         # Update state with structured failure info
         update_stage "$state_file" "$stage_idx" "$stage_name" "failed"
@@ -1037,36 +1051,42 @@ run_pipeline() {
         echo "$output" > "$iter_dir/output.md"
       fi
 
-      # Phase 3: Create error status if agent didn't write status.json
-      if [ ! -f "$status_file" ]; then
-        create_error_status "$status_file" "Agent did not write status.json"
+      if [ ! -f "$result_file" ] && [ -f "$status_file" ]; then
+        local converted_result
+        if converted_result=$(result_from_status "$status_file"); then
+          result_write_atomic "$result_file" "$converted_result"
+        fi
       fi
 
-      # Validate status.json before using it (fail fast on malformed JSON)
-      if ! validate_status "$status_file"; then
-        echo "Warning: Invalid status.json - creating error status" >&2
-        create_error_status "$status_file" "Agent wrote invalid status.json"
+      if [ ! -f "$result_file" ]; then
+        create_error_result "$result_file" "Agent did not write result.json"
       fi
 
-      # Extract status data and update history (needed for plateau to work across stages)
-      local history_json=$(status_to_history_json "$status_file")
+      # Validate result.json before using it
+      if ! validate_result "$result_file"; then
+        echo "Warning: Invalid result.json - creating error result" >&2
+        create_error_result "$result_file" "Agent wrote invalid result.json"
+      fi
+
+      # Extract result data and update history (needed for plateau to work across stages)
+      local history_json=$(result_to_history_json "$result_file")
       update_iteration "$state_file" "$iteration" "$history_json" "$stage_name"
       mark_iteration_completed "$state_file" "$iteration"
       local iter_decision
       local iter_reason
-      iter_decision=$(get_status_decision "$status_file")
-      iter_reason=$(get_status_reason "$status_file")
+      iter_decision=$(result_decision_hint "$result_file")
+      iter_reason=$(result_reason_hint "$result_file")
       local iter_complete_data
       iter_complete_data=$(jq -n \
-        --arg status "$status_file" \
+        --arg result "$result_file" \
         --arg decision "$iter_decision" \
         --arg reason "$iter_reason" \
-        '{status_file: $status, decision: $decision, reason: $reason}')
+        '{result_file: $result, decision: $decision, reason: $reason}')
       emit_event_or_warn "iteration_complete" "$session" "$iter_cursor" "$iter_complete_data" || true
 
-      # Check completion (v3: pass status file path)
+      # Check completion (v3: pass result file path)
       if [ -n "$stage_completion" ] && type check_completion &>/dev/null; then
-        if check_completion "$session" "$state_file" "$status_file"; then
+        if check_completion "$session" "$state_file" "$result_file"; then
           echo "  ✓ Completion condition met after $iteration iterations"
           break
         fi

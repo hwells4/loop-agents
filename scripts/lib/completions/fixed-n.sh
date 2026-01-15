@@ -5,12 +5,12 @@
 # This allows agents to exit early when work is done, while still
 # enforcing a maximum iteration limit.
 
-source "$(dirname "${BASH_SOURCE[0]}")/../status.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../result.sh"
 
 check_completion() {
   local session=$1
   local state_file=$2
-  local status_file=$3
+  local result_file=$3
 
   # Safely get iteration with integer validation
   local iteration=$(get_state "$state_file" "iteration" | tr -d '[:space:]')
@@ -25,9 +25,9 @@ check_completion() {
   # Ensure target is a valid integer
   [[ ! "$target" =~ ^[0-9]+$ ]] && target=10
 
-  # Check if agent requested stop
-  if [ -n "$status_file" ] && [ -f "$status_file" ]; then
-    local decision=$(get_status_decision "$status_file")
+  # Check if agent signaled stop
+  if [ -n "$result_file" ]; then
+    local decision=$(result_decision_hint "$result_file")
     if [ "$decision" = "stop" ]; then
       echo "Agent requested stop at iteration $iteration"
       return 0

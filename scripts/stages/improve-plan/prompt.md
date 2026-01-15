@@ -95,27 +95,28 @@ Append to progress file:
 - [Why you changed it]
 ```
 
-### Step 5: Write Status
+### Step 5: Write Result
 
-After completing your work, write your status to `${STATUS}`:
+After completing your work, write your result to `${RESULT}` (set `signals.plateau_suspected` true when the plan is ready to implement):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "Brief explanation of why work should continue or stop",
   "summary": "One paragraph describing what you improved this iteration",
   "work": {
     "items_completed": [],
     "files_touched": ["docs/plan.md"]
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision guide:**
-- `"continue"` - You found significant gaps or errors that need fixing, or made substantial changes that might have introduced new issues
-- `"stop"` - The plan is ready to implement; remaining issues are cosmetic, not substantive
-- `"error"` - Something went wrong that needs investigation
 
 Be honest. Don't stop early just to finish faster. Don't continue just to seem thorough.
 The goal is a plan that's *ready to implement*, not *perfect*.

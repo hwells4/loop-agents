@@ -39,7 +39,7 @@ validate_session_name() {
 }
 
 # Known template variables (including v3 variables: CTX, STATUS, CONTEXT)
-KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS CONTEXT"
+KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS RESULT CONTEXT"
 
 yaml_line_for_path() {
   local file=$1
@@ -784,7 +784,7 @@ dry_run_loop() {
   echo "| Progress file | .claude/pipeline-runs/${session}/stage-00-${name}/progress.md |"
   echo "| Iteration dir | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/ |"
   echo "| Context file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/context.json |"
-  echo "| Status file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/status.json |"
+  echo "| Result file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/result.json |"
   echo "| Lock file | .claude/locks/${session}.lock |"
   echo ""
 
@@ -815,11 +815,11 @@ EOF
     queue)
       echo "The loop will stop when:"
       echo "- \`bd ready --label=pipeline/${session}\` returns 0 results"
-      echo "- Agent writes \`decision: continue\` (no error)"
+      echo "- Engine-owned decider continues while queue has items"
       ;;
     judgment)
       echo "The loop will stop when:"
-      echo "- $consensus consecutive agents write \`decision: stop\` in status.json"
+      echo "- $consensus consecutive iterations set \`signals.plateau_suspected: true\` in result.json"
       echo "- Minimum iterations before checking: $min_iter"
       ;;
     fixed)

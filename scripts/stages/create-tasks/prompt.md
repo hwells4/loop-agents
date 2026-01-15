@@ -72,19 +72,25 @@ Created N beads from plan:
 - [Key dependencies established]
 ```
 
-### Step 6: Write Status
+### Step 6: Write Result
 
 ```bash
-cat > ${STATUS} << 'EOF'
+cat > ${RESULT} << 'EOF'
 {
-  "decision": "continue",
-  "reason": "Tasks created, ready for refinement",
   "summary": "Created initial beads from plan",
   "work": {
     "items_completed": [],
     "files_touched": []
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": "Tasks created, ready for refinement"
+  }
 }
 EOF
 ```

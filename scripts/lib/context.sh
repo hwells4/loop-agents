@@ -87,6 +87,7 @@ generate_context() {
   fi
   local output_file="$stage_dir/output.md"
   local status_file="$iter_dir/status.json"
+  local result_file="$iter_dir/result.json"
 
   # Ensure directories exist
   mkdir -p "$iter_dir"
@@ -120,6 +121,7 @@ generate_context() {
     --arg progress "$progress_file" \
     --arg output "$output_file" \
     --arg status "$status_file" \
+    --arg result "$result_file" \
     --argjson inputs "$inputs_json" \
     --argjson max_iterations "$max_iterations" \
     --argjson remaining "$remaining_seconds" \
@@ -134,7 +136,8 @@ generate_context() {
         stage_dir: $stage_dir,
         progress: $progress,
         output: $output,
-        status: $status
+        status: $status,
+        result: $result
       },
       inputs: $inputs,
       limits: {

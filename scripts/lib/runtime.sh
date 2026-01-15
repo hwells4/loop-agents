@@ -15,6 +15,7 @@ source "$LIB_DIR/progress.sh"
 source "$LIB_DIR/resolve.sh"
 source "$LIB_DIR/provider.sh"
 source "$LIB_DIR/status.sh"
+source "$LIB_DIR/result.sh"
 source "$LIB_DIR/deciders.sh"
 source "$LIB_DIR/deps.sh"
 source "$LIB_DIR/lock.sh"
@@ -173,8 +174,9 @@ runtime_context_json() {
   local progress_file=$6
   local output_file=$7
   local status_file=$8
-  local inputs_json=$9
-  local max_iterations=${10}
+  local result_file=$9
+  local inputs_json=${10}
+  local max_iterations=${11}
 
   local stage_index
   stage_index=$(runtime_stage_index_from_path "$node_path")
@@ -191,6 +193,7 @@ runtime_context_json() {
     --arg progress "$progress_file" \
     --arg output "$output_file" \
     --arg status "$status_file" \
+    --arg result "$result_file" \
     --argjson inputs "$inputs_json" \
     --argjson max_iterations "$max_iterations" \
     --argjson remaining "-1" \
@@ -205,7 +208,8 @@ runtime_context_json() {
         stage_dir: $stage_dir,
         progress: $progress,
         output: $output,
-        status: $status
+        status: $status,
+        result: $result
       },
       inputs: $inputs,
       limits: {
@@ -478,7 +482,7 @@ run_stage() {
     inputs_json=$(runtime_inputs_json "$node_run_dir" "$iter")
     local context_json
     context_json=$(runtime_context_json "$node_id" "$node_path" "$stage_ref" "$iter" "$node_dir" \
-      "$RUNTIME_PROGRESS_FILE" "$output_file" "$status_file" "$inputs_json" "$max_iters")
+      "$RUNTIME_PROGRESS_FILE" "$output_file" "$status_file" "$result_file" "$inputs_json" "$max_iters")
     local context_file="$iter_dir/ctx.json"
     runtime_write_atomic "$context_file" "$context_json"
 
@@ -492,13 +496,15 @@ run_stage() {
       --arg output_path "$resolved_output_path" \
       --arg context_file "$context_file" \
       --arg status_file "$status_file" \
+      --arg result_file "$result_file" \
       --arg context "$node_context" \
-      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output: $output, output_path: $output_path, context_file: $context_file, status_file: $status_file, context: $context}')
+      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output: $output, output_path: $output_path, context_file: $context_file, status_file: $status_file, result_file: $result_file, context: $context}')
 
     local resolved_prompt
     resolved_prompt=$(resolve_prompt "$stage_prompt" "$vars_json")
 
     export MOCK_STATUS_FILE="$status_file"
+    export MOCK_RESULT_FILE="$result_file"
     export MOCK_ITERATION="$iter"
 
     local output=""
@@ -511,35 +517,42 @@ run_stage() {
     if [ $exit_code -ne 0 ]; then
       runtime_emit_event "error" "$(runtime_build_cursor "$node_path" "$node_run" "$iter")" \
         "$(jq -n --arg msg "Agent exited with $exit_code" --argjson code "$exit_code" '{message: $msg, exit_code: $code}')" || true
-      create_error_status "$status_file" "Agent exited with code $exit_code"
+      create_error_result "$result_file" "Agent exited with code $exit_code"
       mark_failed "$RUNTIME_STATE_FILE" "Agent exited with code $exit_code" "exit_code"
       return 1
     fi
 
     [ -n "$output" ] && echo "$output" > "$output_file"
 
-    if [ ! -f "$status_file" ]; then
-      create_error_status "$status_file" "Agent did not write status.json"
+    if [ ! -f "$result_file" ] && [ -f "$status_file" ]; then
+      local converted_result
+      if converted_result=$(result_from_status "$status_file"); then
+        result_write_atomic "$result_file" "$converted_result"
+      fi
     fi
 
-    if ! validate_status "$status_file"; then
-      create_error_status "$status_file" "Agent wrote invalid status.json"
+    if [ ! -f "$result_file" ]; then
+      create_error_result "$result_file" "Agent did not write result.json"
+    fi
+
+    if ! validate_result "$result_file"; then
+      create_error_result "$result_file" "Agent wrote invalid result.json"
     fi
 
     local history_json
-    history_json=$(status_to_history_json "$status_file")
+    history_json=$(result_to_history_json "$result_file")
     update_iteration "$RUNTIME_STATE_FILE" "$iter" "$history_json" "$node_id" || true
     mark_iteration_completed "$RUNTIME_STATE_FILE" "$iter" || true
 
     runtime_emit_event "worker_complete" "$(runtime_build_cursor "$node_path" "$node_run" "$iter")" \
-      "$(jq -n --arg status "$status_file" --argjson code "$exit_code" '{status_file: $status, exit_code: $code}')" || true
+      "$(jq -n --arg result "$result_file" --argjson code "$exit_code" '{result_file: $result, exit_code: $code}')" || true
 
-    local decision
-    decision=$(get_status_decision "$status_file")
-    local reason
-    reason=$(get_status_reason "$status_file")
+    local summary
+    summary=$(jq -r '.summary // ""' "$result_file" 2>/dev/null || echo "")
+    local signals
+    signals=$(jq -c '.signals // {}' "$result_file" 2>/dev/null || echo "{}")
     runtime_emit_event "iteration_complete" "$(runtime_build_cursor "$node_path" "$node_run" "$iter")" \
-      "$(jq -n --arg decision "$decision" --arg reason "$reason" '{decision: $decision, reason: $reason}')" || true
+      "$(jq -n --arg result "$result_file" --arg summary "$summary" --argjson signals "$signals" '{result_file: $result, summary: $summary, signals: $signals}')" || true
 
     local decision_json=""
     if ! decision_json=$(decider_run "$term_type" "$iter" "$max_iters" "$min_iters" "$consensus" \

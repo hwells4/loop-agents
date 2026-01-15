@@ -846,6 +846,7 @@ write_parallel_manifest() {
             local iter_dir="$stage_dir/iterations/$latest_iter"
             local output_path="$iter_dir/output.md"
             local status_path="$iter_dir/status.json"
+            local result_path="$iter_dir/result.json"
 
             # Get iteration count and termination reason from provider state
             local stage_info=$(echo "$provider_stages" | jq --arg name "$stage" '.[] | select(.name == $name)')
@@ -865,10 +866,11 @@ write_parallel_manifest() {
               --arg stage "$stage" \
               --arg output "$output_path" \
               --arg status "$status_path" \
+              --arg result "$result_path" \
               --argjson iters "$iterations" \
               --arg reason "$term_reason" \
               --argjson history "$history" \
-              '. + {($stage): {latest_output: $output, status: $status, iterations: $iters, termination_reason: $reason, history: $history}}')
+              '. + {($stage): {latest_output: $output, status: $status, result: $result, iterations: $iters, termination_reason: $reason, history: $history}}')
           fi
         fi
         stage_idx=$((stage_idx + 1))

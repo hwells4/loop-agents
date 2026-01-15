@@ -162,9 +162,11 @@ execute_agent() {
     fi
     echo "$response"
 
-    # Write mock status file if path is provided
-    # MOCK_STATUS_FILE should be set by the engine before calling execute_agent
-    if [ -n "$MOCK_STATUS_FILE" ] && type write_mock_status &>/dev/null; then
+    # Write mock result/status files if paths are provided
+    # MOCK_RESULT_FILE / MOCK_STATUS_FILE should be set by the engine before calling execute_agent
+    if [ -n "$MOCK_RESULT_FILE" ] && type write_mock_result &>/dev/null; then
+      write_mock_result "$MOCK_RESULT_FILE" "$iteration"
+    elif [ -n "$MOCK_STATUS_FILE" ] && type write_mock_status &>/dev/null; then
       write_mock_status "$MOCK_STATUS_FILE" "$iteration"
     fi
 

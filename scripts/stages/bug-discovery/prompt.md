@@ -44,19 +44,25 @@ Append what you find to the progress file. Include:
 
 Use ultrathink. Be methodical. Be critical.
 
-## Write Status
+## Write Result
 
-After exploring, write your status to `${STATUS}`:
+After exploring, write your result to `${RESULT}` (set `signals.plateau_suspected` true when no further progress is likely):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "More areas to explore",
   "summary": "Brief summary of what you found",
   "work": {
     "items_completed": [],
     "files_touched": []
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
