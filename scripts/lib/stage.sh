@@ -52,6 +52,7 @@ load_stage() {
   STAGE_PROVIDER=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$STAGE_CONFIG" ".provider" "claude")}}
 
   # Model default is provider-aware: opus for Claude, gpt-5.2-codex for Codex
+  # For Codex, model can include reasoning: gpt-5.2-codex:xhigh
   local default_model=$(get_default_model "$STAGE_PROVIDER")
   STAGE_MODEL=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$STAGE_CONFIG" ".model" "$default_model")}}
 

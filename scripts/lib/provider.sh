@@ -103,14 +103,19 @@ execute_claude() {
 
 # Execute Codex with a prompt
 # Usage: execute_codex "$prompt" "$model" "$output_file"
-# Model: gpt-5.2-codex (default), gpt-5-codex, o3, etc.
-# Reasoning effort: minimal, low, medium, high (default: high)
-# Configure via env vars: CODEX_MODEL, CODEX_REASONING_EFFORT
+# Model: gpt-5.2-codex (default), or model:reasoning like gpt-5.2-codex:xhigh
+# Reasoning effort: xhigh, high, medium, low, minimal (default: high)
 execute_codex() {
   local prompt=$1
-  local model=${2:-"${CODEX_MODEL:-gpt-5.2-codex}"}
+  local model_arg=${2:-"${CODEX_MODEL:-gpt-5.2-codex}"}
   local output_file=$3
-  local reasoning=${CODEX_REASONING_EFFORT:-"high"}
+
+  # Parse model:reasoning format (e.g., gpt-5.2-codex:xhigh)
+  local model="${model_arg%%:*}"
+  local reasoning="${CODEX_REASONING_EFFORT:-high}"
+  if [[ "$model_arg" == *:* ]]; then
+    reasoning="${model_arg#*:}"
+  fi
 
   # Validate model
   validate_codex_model "$model" || return 1

@@ -187,7 +187,7 @@ Stages can use different AI agent providers. The default is Claude Code.
 ```yaml
 # In stage.yaml
 provider: codex  # or claude (default)
-model: gpt-5.2-codex  # provider-specific model
+model: gpt-5.2-codex:xhigh  # Codex: model:reasoning (xhigh, high, medium, low, minimal)
 ```
 
 ### State vs Progress Files
@@ -554,7 +554,7 @@ delay: 3                # seconds between iterations
 
 # Optional fields:
 provider: claude                    # claude or codex (default: claude)
-model: opus                         # model name (provider-specific)
+model: opus                         # model name (Codex: model:reasoning like gpt-5.2-codex:xhigh)
 prompt: prompts/custom.md           # custom prompt path (default: prompt.md)
 output_path: docs/output-${SESSION}.md  # direct output to specific file
 ```
