@@ -163,6 +163,23 @@ render_judge_prompt() {
     fi
   fi
 
+  local iteration_history=""
+  local prev_files
+  prev_files=$(echo "$input_json" | jq -r '.inputs.from_previous_iterations // [] | .[]')
+  if [ -n "$prev_files" ]; then
+    local iter_num=1
+    while IFS= read -r file; do
+      [ -z "$file" ] && continue
+      if [ -f "$file" ]; then
+        iteration_history+="### Iteration $iter_num
+$(judge_read_text_file "$file")
+
+"
+      fi
+      iter_num=$((iter_num + 1))
+    done <<< "$prev_files"
+  fi
+
   local rendered="$template"
   rendered="${rendered//\$\{STAGE_NAME\}/$stage_name}"
   rendered="${rendered//\$\{ITERATION\}/$iteration}"
@@ -170,6 +187,7 @@ render_judge_prompt() {
   rendered="${rendered//\$\{RESULT_JSON\}/$result_json}"
   rendered="${rendered//\$\{PROGRESS_MD\}/$progress_md}"
   rendered="${rendered//\$\{NODE_OUTPUT\}/$node_output}"
+  rendered="${rendered//\$\{ITERATION_HISTORY\}/$iteration_history}"
 
   echo "$rendered"
 }

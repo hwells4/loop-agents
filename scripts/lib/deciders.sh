@@ -154,6 +154,29 @@ decider_load_judge() {
   fi
 }
 
+decider_format_index() {
+  printf '%04d' "$1"
+}
+
+decider_previous_iterations() {
+  local node_run_dir=$1
+  local iteration=$2
+  local files=()
+
+  if [ "$iteration" -gt 1 ] && [ -d "$node_run_dir" ]; then
+    for ((i=1; i<iteration; i++)); do
+      local candidate="$node_run_dir/iteration-$(decider_format_index "$i")/output.md"
+      [ -f "$candidate" ] && files+=("$candidate")
+    done
+  fi
+
+  if [ ${#files[@]} -gt 0 ]; then
+    printf '%s\n' "${files[@]}" | jq -R . | jq -s .
+  else
+    echo "[]"
+  fi
+}
+
 decider_judgment() {
   local session=$1
   local node_path=$2
@@ -166,6 +189,7 @@ decider_judgment() {
   local node_id=$9
   local stage_ref=${10:-""}
   local termination_json=${11:-"{}"}
+  local node_run_dir=${12:-""}
 
   node_run=$(decider_int_or_default "$node_run" 0)
   iteration=$(decider_int_or_default "$iteration" 0)
@@ -185,6 +209,9 @@ decider_judgment() {
     return 0
   fi
 
+  local previous_iterations_json
+  previous_iterations_json=$(decider_previous_iterations "$node_run_dir" "$iteration")
+
   local judge_input
   judge_input=$(jq -n \
     --arg session "$session" \
@@ -196,11 +223,13 @@ decider_judgment() {
     --arg result "$result_file" \
     --arg progress "$progress_file" \
     --argjson termination "$termination_json" \
+    --argjson previous_iterations "$previous_iterations_json" \
     '{
       session: $session,
       cursor: {node_path: $node_path, node_run: $node_run, iteration: $iteration},
       node: {id: $node_id, ref: $stage_ref},
       paths: {result: $result, progress: $progress},
+      inputs: {from_previous_iterations: $previous_iterations},
       termination: $termination
     }')
 
@@ -277,6 +306,7 @@ decider_run() {
   local node_id=${12}
   local stage_ref=${13}
   local termination_json=${14:-"{}"}
+  local node_run_dir=${15:-""}
 
   case "$term_type" in
     queue)
@@ -284,7 +314,7 @@ decider_run() {
       ;;
     judgment)
       decider_judgment "$session" "$node_path" "$node_run" "$iteration" "$min_iters" \
-        "$consensus" "$result_file" "$progress_file" "$node_id" "$stage_ref" "$termination_json"
+        "$consensus" "$result_file" "$progress_file" "$node_id" "$stage_ref" "$termination_json" "$node_run_dir"
       ;;
     fixed|*)
       decider_fixed "$iteration" "$max_iters"

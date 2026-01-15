@@ -557,7 +557,7 @@ run_stage() {
     local decision_json=""
     if ! decision_json=$(decider_run "$term_type" "$iter" "$max_iters" "$min_iters" "$consensus" \
       "$queue_command" "$RUNTIME_SESSION" "$node_path" "$node_run" "$result_file" \
-      "$RUNTIME_PROGRESS_FILE" "$node_id" "$stage_ref" "$termination_json"); then
+      "$RUNTIME_PROGRESS_FILE" "$node_id" "$stage_ref" "$termination_json" "$node_run_dir"); then
       decision_json=$(jq -n --arg term "$term_type" '{decision: "continue", reason: "decider_failed", termination_type: $term}')
     fi
 

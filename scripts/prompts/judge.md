@@ -11,11 +11,19 @@ ${RESULT_JSON}
 ## Node Output So Far
 ${NODE_OUTPUT}
 
+## Iteration History
+${ITERATION_HISTORY}
+
 ## Progress So Far
 ${PROGRESS_MD}
 
 ## Your Task
 Determine if the goal has been achieved or if further iterations would be unproductive.
+
+Use the iteration history to detect trends:
+- Are iterations making meaningful progress, or repeating similar work?
+- Is quality improving, plateauing, or declining?
+- Are there signs of diminishing returns?
 
 Output exactly:
 ```json
