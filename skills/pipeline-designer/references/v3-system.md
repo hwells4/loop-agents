@@ -173,14 +173,15 @@ CLAUDE_PIPELINE_PROVIDER=codex ./scripts/run.sh {stage} {session} {max}
 name: pipeline-name
 description: What the pipeline accomplishes
 
-# Optional: commands passed to all stages
+# Optional: commands passed to all nodes
 commands:
   test: "npm test"
   lint: "npm run lint"
   types: "npm run typecheck"
 
-stages:
-  - name: plan
+# NOTE: "stages:" is deprecated but still works; prefer "nodes:"
+nodes:
+  - id: plan
     stage: improve-plan          # Directory in scripts/stages/
     termination:
       type: judgment
@@ -189,13 +190,13 @@ stages:
     inputs:
       from_initial: true         # Pass CLI --input files
 
-  - name: implement
+  - id: implement
     stage: ralph
     termination:
       type: fixed
       iterations: 10
     inputs:
-      from_stage: plan           # Receives outputs from "plan" stage
+      from: plan                 # Receives outputs from "plan" node
 ```
 
 ### Parallel Blocks
@@ -203,18 +204,18 @@ stages:
 Run multiple providers concurrently:
 
 ```yaml
-stages:
-  - name: dual-review
+nodes:
+  - id: dual-review
     parallel:
       providers: [claude, codex]
       stages:
-        - name: analyze
+        - id: analyze
           stage: code-review
           termination:
             type: fixed
             iterations: 1
 
-  - name: synthesize
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: analyze     # Receives outputs from both providers

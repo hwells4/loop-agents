@@ -18,9 +18,10 @@ commands:
   format: "npm run format"
   types: "npm run typecheck"
 
-# Required: List of stages to execute
-stages:
-  - name: stage-name       # Required: Unique identifier
+# Required: List of nodes to execute (formerly called "stages")
+# NOTE: "stages:" is deprecated but still works; prefer "nodes:"
+nodes:
+  - id: stage-name         # Required: Unique identifier
     stage: improve-plan    # Required: Stage type from scripts/stages/
     description: ...       # Optional: What this stage does
     provider: claude       # Optional: claude or codex (default: claude)
@@ -31,9 +32,9 @@ stages:
       type: judgment       # queue, judgment, or fixed
       consensus: 2         # For judgment: consecutive stops needed
       max: 5               # Optional: hard cap on iterations
-    inputs:                # Optional: Wire outputs from other stages
+    inputs:                # Optional: Wire outputs from other nodes
       from_initial: true   # Pass CLI --input files
-      from_stage: plan     # Outputs from named previous stage
+      from: plan           # Outputs from named previous node
 ```
 
 ## Template Variables
@@ -60,27 +61,27 @@ Use these in prompt templates - resolved at runtime:
 | `${INDEX}` | `${ITERATION} - 1` (0-based) |
 | `${PROGRESS_FILE}` | `${PROGRESS}` |
 
-## Inter-Stage Inputs
+## Inter-Node Inputs
 
-Pass outputs between stages using the `inputs` config:
+Pass outputs between nodes using the `inputs` config:
 
 ```yaml
-stages:
-  - name: plan
+nodes:
+  - id: plan
     stage: improve-plan
     termination:
       type: judgment
       consensus: 2
       max: 5
 
-  - name: implement
+  - id: implement
     stage: ralph
     termination:
       type: fixed
       iterations: 10
     inputs:
       from_initial: true     # Pass CLI --input files
-      from_stage: plan       # Outputs from "plan" stage
+      from: plan             # Outputs from "plan" node
 ```
 
 Agents access inputs via `context.json`:
@@ -101,30 +102,30 @@ jq -r '.inputs.from_previous_iterations[]' ${CTX} | xargs cat
 Run multiple providers concurrently with isolated contexts:
 
 ```yaml
-stages:
-  - name: setup
+nodes:
+  - id: setup
     stage: improve-plan
     termination:
       type: fixed
       iterations: 1
 
-  - name: dual-review
+  - id: dual-review
     parallel:
       providers: [claude, codex]
       stages:
-        - name: analyze
+        - id: analyze
           stage: code-review
           termination:
             type: fixed
             iterations: 1
-        - name: refine
+        - id: refine
           stage: improve-plan
           termination:
             type: judgment
             consensus: 2
             max: 5
 
-  - name: synthesize
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: refine  # Read outputs from all providers
@@ -156,7 +157,7 @@ inputs:
 
 ## Commands Passthrough
 
-Pass project-specific commands to all stages:
+Pass project-specific commands to all nodes:
 
 ```yaml
 name: test-pipeline
@@ -165,8 +166,8 @@ commands:
   lint: "npm run lint"
   types: "npm run typecheck"
 
-stages:
-  - name: implement
+nodes:
+  - id: implement
     stage: ralph
     ...
 ```
@@ -207,22 +208,22 @@ CLAUDE_PIPELINE_PROVIDER=codex ./scripts/run.sh pipeline my-pipeline.yaml sessio
 name: full-refine
 description: Refine plan then tasks
 
-stages:
-  - name: plan
+nodes:
+  - id: plan
     stage: improve-plan
     termination:
       type: judgment
       consensus: 2
       max: 5
 
-  - name: tasks
+  - id: tasks
     stage: refine-tasks
     termination:
       type: judgment
       consensus: 2
       max: 5
     inputs:
-      from_stage: plan
+      from: plan
 ```
 
 ### Pipeline with Commands
@@ -234,8 +235,8 @@ commands:
   test: "npm test"
   lint: "npm run lint"
 
-stages:
-  - name: fix
+nodes:
+  - id: fix
     stage: ralph
     termination:
       type: fixed
@@ -248,19 +249,19 @@ stages:
 name: dual-refine
 description: Compare Claude and Codex refinements
 
-stages:
-  - name: compare
+nodes:
+  - id: compare
     parallel:
       providers: [claude, codex]
       stages:
-        - name: refine
+        - id: refine
           stage: improve-plan
           termination:
             type: judgment
             consensus: 2
             max: 5
 
-  - name: merge
+  - id: merge
     stage: elegance
     inputs:
       from_parallel: refine
