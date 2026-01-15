@@ -76,10 +76,19 @@ test_from_initial_entries_are_absolute_paths() {
   local canonical_dir
   canonical_dir=$(cd "$test_dir" && pwd)
 
-  # Create a seed plan and simulate resolved initial inputs manifest
+  # Create a seed plan and simulate resolved initial inputs in plan.json
   local plan_file="$canonical_dir/seed-plan.md"
   echo "# bootstrap" > "$plan_file"
-  echo '["'"$plan_file"'"]' > "$test_dir/initial-inputs.json"
+  cat > "$test_dir/plan.json" << EOF
+{
+  "version": 1,
+  "session": {
+    "name": "contract-session",
+    "inputs": ["$plan_file"]
+  },
+  "nodes": []
+}
+EOF
 
   local context_file
   context_file=$(generate_context "contract-session" "1" "$stage_config" "$test_dir")

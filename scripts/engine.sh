@@ -668,7 +668,7 @@ run_pipeline() {
   local pipeline_inputs=$(echo "$plan_json" | jq -c '.pipeline.inputs // []')
   local pipeline_commands=$(echo "$plan_json" | jq -c '.pipeline.commands // {}')
 
-  # Resolve and store initial inputs (v4: pipeline-level inputs)
+  # Resolve and store initial inputs in plan.json (not a separate file)
   local initial_inputs="$pipeline_inputs"
   if [ -n "$PIPELINE_CLI_INPUTS" ]; then
     # Merge CLI inputs with plan inputs (CLI takes precedence if both exist)
@@ -679,7 +679,11 @@ run_pipeline() {
     fi
   fi
   local resolved_inputs=$(resolve_initial_inputs "$initial_inputs")
-  echo "$resolved_inputs" > "$run_dir/initial-inputs.json"
+  # Update plan.json with resolved inputs in session.inputs
+  local updated_plan
+  updated_plan=$(echo "$plan_json" | jq --argjson inputs "$resolved_inputs" '.session.inputs = $inputs')
+  echo "$updated_plan" > "$plan_file"
+  plan_json="$updated_plan"
 
   # Initialize state
   local state_file=$(init_state "$session" "pipeline" "$run_dir")
