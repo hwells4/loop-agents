@@ -196,10 +196,10 @@ case "$1" in
       else
         echo "Test file not found: $test_file"
         echo "Available tests:"
-        ls "$TESTS_DIR"/test_*.sh 2>/dev/null | while read f; do
+        while IFS= read -r f; do
           name=$(basename "$f" .sh | sed 's/^test_//')
           echo "  $name"
-        done
+        done < <(ls "$TESTS_DIR"/test_*.sh 2>/dev/null)
         exit 1
       fi
     else

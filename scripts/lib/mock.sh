@@ -206,9 +206,9 @@ list_fixtures() {
   fi
 
   echo "Fixtures for $loop_name:"
-  ls -1 "$fixtures_dir" 2>/dev/null | while read f; do
+  while IFS= read -r f; do
     echo "  $f"
-  done
+  done < <(ls -1 "$fixtures_dir" 2>/dev/null)
 }
 
 # Create fixture set for a stage type

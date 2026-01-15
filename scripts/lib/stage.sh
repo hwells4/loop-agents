@@ -11,9 +11,9 @@ load_stage() {
   if [ ! -d "$stage_dir" ]; then
     echo "Error: Loop type not found: $stage_type" >&2
     echo "Available stages:" >&2
-    ls "$STAGES_DIR" 2>/dev/null | while read d; do
+    while IFS= read -r d; do
       [ -d "$STAGES_DIR/$d" ] && echo "  $d" >&2
-    done
+    done < <(ls "$STAGES_DIR" 2>/dev/null)
     return 1
   fi
 
