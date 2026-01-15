@@ -1,0 +1,19 @@
+# Fresh Eyes Stage - Deep critical review of plan documents
+# Uses Codex with xhigh reasoning for maximum scrutiny
+# Finds errors, logical flaws, bad assumptions others miss
+
+name: fresh-eyes
+description: Critical review with fresh eyes—find errors, logical flaws, and bad assumptions in plans
+
+provider: codex
+model: gpt-5.2-codex
+
+termination:
+  type: judgment
+  min_iterations: 2
+  consensus: 2
+
+delay: 3
+
+# Run with: CODEX_REASONING_EFFORT=xhigh ./scripts/run.sh fresh-eyes my-session 5
+# xhigh reasoning is recommended for this stage to catch subtle errors

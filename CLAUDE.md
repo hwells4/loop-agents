@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Philosophy
+
+This codebase will outlive you. Every shortcut becomes someone else's burden. Establish will be copied and corners you cut will be cut again. Please fight entropy and leave the codebase better than you found it.
+
 ## What This Is
 
 Agent Pipelines is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for Claude Code. It runs autonomous, multi-iteration agent workflows in tmux sessions. Each iteration spawns a fresh Claude instance that reads accumulated progress to maintain context without degradation.
@@ -108,7 +112,8 @@ scripts/
 │   ├── bug-triage/           # Bug triage and elegant fix design (judgment termination)
 │   ├── idea-wizard/          # Ideation (fixed termination)
 │   ├── research-plan/        # Research-driven planning (judgment termination)
-│   └── test-scanner/         # Test coverage gap discovery (judgment termination)
+│   ├── test-scanner/         # Test coverage gap discovery (judgment termination)
+│   └── fresh-eyes/           # Critical plan review with Codex xhigh (judgment termination)
 └── pipelines/                # Multi-stage pipeline configs
     ├── refine.yaml           # 5+5 plan → task iterations
     ├── ideate.yaml           # Brainstorm improvements
