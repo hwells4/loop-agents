@@ -15,6 +15,7 @@ source "$LIB_DIR/progress.sh"
 source "$LIB_DIR/resolve.sh"
 source "$LIB_DIR/provider.sh"
 source "$LIB_DIR/status.sh"
+source "$LIB_DIR/deciders.sh"
 source "$LIB_DIR/deps.sh"
 source "$LIB_DIR/lock.sh"
 source "$LIB_DIR/stage.sh"
@@ -396,6 +397,8 @@ run_stage() {
 
   local term_type
   term_type=$(echo "$node_json" | jq -r '.termination.type // "fixed"')
+  local termination_json
+  termination_json=$(echo "$node_json" | jq -c '.termination // {}')
   local max_iters
   max_iters=$(echo "$node_json" | jq -r '.termination.max // .termination.iterations // 1')
   max_iters=$(runtime_int_or_default "$max_iters" 1)
@@ -405,6 +408,8 @@ run_stage() {
   local consensus
   consensus=$(echo "$node_json" | jq -r '.termination.consensus // 2')
   consensus=$(runtime_int_or_default "$consensus" 2)
+  local queue_command
+  queue_command=$(echo "$node_json" | jq -r '.termination.command // empty')
   local delay_raw
   delay_raw=$(echo "$node_json" | jq -r '.delay // empty')
   local delay="$delay_raw"
@@ -443,21 +448,6 @@ run_stage() {
     check_provider "$provider" || return 1
   fi
 
-  local completion_script=""
-  case "$term_type" in
-    queue) completion_script="$LIB_DIR/completions/beads-empty.sh" ;;
-    judgment) completion_script="$LIB_DIR/completions/plateau.sh" ;;
-    fixed|*) completion_script="$LIB_DIR/completions/fixed-n.sh" ;;
-  esac
-  if [ -f "$completion_script" ]; then
-    source "$completion_script"
-  fi
-
-  export MIN_ITERATIONS="$min_iters"
-  export CONSENSUS="$consensus"
-  export MAX_ITERATIONS="$max_iters"
-  export FIXED_ITERATIONS="$max_iters"
-
   local node_dir
   node_dir=$(runtime_node_dir "$RUNTIME_SESSION_DIR" "$node_path")
   local node_run_dir
@@ -477,6 +467,7 @@ run_stage() {
 
     local output_file="$iter_dir/output.md"
     local status_file="$iter_dir/status.json"
+    local result_file="$iter_dir/result.json"
     local resolved_output_path
     resolved_output_path=$(runtime_resolve_output_path "$(echo "$node_json" | jq -r '.output_path // empty')" "$RUNTIME_SESSION")
     if [ -n "$resolved_output_path" ]; then
@@ -550,19 +541,24 @@ run_stage() {
     runtime_emit_event "iteration_complete" "$(runtime_build_cursor "$node_path" "$node_run" "$iter")" \
       "$(jq -n --arg decision "$decision" --arg reason "$reason" '{decision: $decision, reason: $reason}')" || true
 
-    if type check_completion >/dev/null 2>&1; then
-      local completion_output=""
-      if completion_output=$(check_completion "$RUNTIME_SESSION" "$RUNTIME_STATE_FILE" "$status_file"); then
-        completion_reason="$completion_output"
-        break
-      fi
+    local decision_json=""
+    if ! decision_json=$(decider_run "$term_type" "$iter" "$max_iters" "$min_iters" "$consensus" \
+      "$queue_command" "$RUNTIME_SESSION" "$node_path" "$node_run" "$result_file" \
+      "$RUNTIME_PROGRESS_FILE" "$node_id" "$stage_ref" "$termination_json"); then
+      decision_json=$(jq -n --arg term "$term_type" '{decision: "continue", reason: "decider_failed", termination_type: $term}')
     fi
 
-    if type check_output_signal >/dev/null 2>&1; then
-      if check_output_signal "$output"; then
-        completion_reason="completion_signal"
-        break
-      fi
+    local term_decision
+    term_decision=$(echo "$decision_json" | jq -r '.decision // "continue"')
+    local term_reason
+    term_reason=$(echo "$decision_json" | jq -r '.reason // ""')
+
+    runtime_emit_event "decision" "$(runtime_build_cursor "$node_path" "$node_run" "$iter")" \
+      "$decision_json" || true
+
+    if [ "$term_decision" = "stop" ]; then
+      completion_reason="$term_reason"
+      break
     fi
 
     if [ "$delay" -gt 0 ]; then
