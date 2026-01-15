@@ -8,10 +8,104 @@ Runs refinement pipelines: multiple agents review and improve plans and beads. P
 
 **Runtime:** ~2-3 min per iteration
 
-## Usage
+## When Invoked
+
+Ask the user to configure the refinement, then show a summary and confirm before launching.
+
+### Step 1: Gather Configuration
+
+Use AskUserQuestion:
+
+```json
+{
+  "questions": [{
+    "question": "What type of refinement?",
+    "header": "Type",
+    "options": [
+      {"label": "Full (Recommended)", "description": "5+5 iterations - balanced thoroughness"},
+      {"label": "Quick", "description": "3+3 iterations - fast validation"},
+      {"label": "Deep", "description": "8+8 iterations - comprehensive review"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+Then ask for session name:
+
+```json
+{
+  "questions": [{
+    "question": "Session name?",
+    "header": "Session",
+    "options": [
+      {"label": "Derive from branch", "description": "Use current git branch name"},
+      {"label": "Custom", "description": "I'll specify a name"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+### Step 2: Check Prerequisites
+
+```bash
+# Check for plan files
+ls docs/plans/*.md 2>/dev/null | head -5
+
+# Check for beads
+bd ready 2>/dev/null | head -5
+```
+
+### Step 3: Show Pre-Launch Summary and Confirm
 
 ```
-/refine              # Full refine (5+5 iterations)
+## Pre-Launch Summary
+
+Pipeline: {type}-refine.yaml
+Session: {session}
+Provider: claude (opus)
+
+Stages:
+  1. improve-plan ({N} iterations) - Reviews docs/plans/
+  2. refine-tasks ({N} iterations) - Reviews beads
+
+Termination: Two-agent consensus per stage
+Plans found: {count} files in docs/plans/
+Beads found: {count} ready beads
+
+Estimated runtime: ~{N*2} minutes
+```
+
+```json
+{
+  "questions": [{
+    "question": "Ready to launch this refinement pipeline?",
+    "header": "Confirm",
+    "options": [
+      {"label": "Launch", "description": "Start the refinement now"},
+      {"label": "Edit Config", "description": "Change provider, model, or add context"},
+      {"label": "Cancel", "description": "Don't start, return to conversation"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**If "Launch":** Start the pipeline
+**If "Edit Config":** Ask what to change
+**If "Cancel":** Abort
+
+### Step 4: Launch
+
+```bash
+./scripts/run.sh pipeline {type}-refine.yaml {session}
+```
+
+## Usage (Direct Commands)
+
+```
+/refine              # Interactive (recommended)
 /refine quick        # Quick pass (3+3 iterations)
 /refine deep         # Thorough pass (8+8 iterations)
 /refine plan         # Only refine docs/plans/

@@ -208,7 +208,53 @@ command -v tmux >/dev/null || echo "ERROR: tmux not found"
 command -v jq >/dev/null || echo "ERROR: jq not found"
 ```
 
-## Step 6: Build and Execute Command
+## Step 6: Show Pre-Launch Summary and Confirm
+
+Before executing, show exactly what will run:
+
+```
+## Pre-Launch Summary
+
+Type: {stage or pipeline name}
+Session: {session}
+Provider: {provider:-claude} ({model:-opus})
+Termination: {termination type from stage.yaml}
+Max iterations: {max_iterations}
+
+{For stages with beads:}
+Beads ready: {count} with label 'pipeline/{session}'
+
+{For pipelines:}
+Stages: {list stages from pipeline yaml}
+
+{If any flags:}
+Flags: {--resume, --force, --context="...", --input=...}
+
+Command: ./scripts/run.sh {stage} {session} {max} [flags]
+```
+
+Use AskUserQuestion to confirm:
+
+```json
+{
+  "questions": [{
+    "question": "Ready to launch?",
+    "header": "Confirm",
+    "options": [
+      {"label": "Launch", "description": "Start the session now"},
+      {"label": "Edit Config", "description": "Change provider, model, or other settings"},
+      {"label": "Cancel", "description": "Don't start, return to conversation"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**If "Launch":** Proceed to Step 7
+**If "Edit Config":** Return to Step 3 to modify options
+**If "Cancel":** Abort with confirmation message
+
+## Step 7: Execute Command
 
 **For Stages:**
 ```bash
@@ -239,7 +285,7 @@ echo "Executing: $cmd"
 eval "$cmd"
 ```
 
-## Step 7: Verify and Report
+## Step 8: Verify and Report
 
 ```bash
 # Wait briefly
@@ -281,6 +327,8 @@ Management:
 - [ ] Iteration count set (for stages)
 - [ ] Conflicts detected and resolved
 - [ ] Prerequisites verified
+- [ ] Pre-launch summary shown to user
+- [ ] User confirmed launch via AskUserQuestion
 - [ ] Session launched successfully
 - [ ] Startup confirmed via tmux check
 - [ ] Clear next actions provided

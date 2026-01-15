@@ -35,21 +35,57 @@ Options:
 
 Once you have answers:
 
-1. **Tell the user what's about to happen:**
-```
-I'm going to spawn an autonomous agent in a tmux session. It will work through your tasks independently.
-```
-
-2. **Verify tasks exist:**
+1. **Verify tasks exist:**
 ```bash
 # For beads:
-bd ready --label={label} | head -5
+bd ready --label={label}
 
 # For file:
 cat {file} | head -10
 ```
 
-3. **Derive session name** from the label or file (e.g., `pipeline/auth` → `auth`, `tasks/feature.md` → `feature`)
+2. **Derive session name** from the label or file (e.g., `pipeline/auth` → `auth`, `tasks/feature.md` → `feature`)
+
+3. **Show Pre-Launch Summary and ask for confirmation:**
+
+Display exactly what will run, then use AskUserQuestion:
+
+```
+## Pre-Launch Summary
+
+Pipeline: ralph (work loop)
+Session: {session}
+Provider: claude (opus)
+Termination: fixed ({iterations} max iterations)
+
+Tasks found:
+  • {count} beads ready with label '{label}'
+  • First 3: {bead1}, {bead2}, {bead3}
+
+What will happen:
+  • Fresh agent spawned each iteration
+  • Works through beads until queue empty or max reached
+  • Progress saved to .claude/pipeline-runs/{session}/
+```
+
+```json
+{
+  "questions": [{
+    "question": "Ready to launch this pipeline?",
+    "header": "Confirm",
+    "options": [
+      {"label": "Launch", "description": "Start the pipeline now"},
+      {"label": "Edit Config", "description": "Change provider, model, or add context"},
+      {"label": "Cancel", "description": "Don't start, return to conversation"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**If "Launch":** Proceed to step 4
+**If "Edit Config":** Ask what to change (provider, model, context, inputs)
+**If "Cancel":** Abort and confirm cancellation
 
 4. **Start the work pipeline:**
 ```bash
