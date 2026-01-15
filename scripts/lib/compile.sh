@@ -10,10 +10,11 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$COMPILE_SCRIPT_DIR/../.." && pwd)}"
 STAGES_DIR="${STAGES_DIR:-$PROJECT_ROOT/scripts/stages}"
 PIPELINES_DIR="${PIPELINES_DIR:-$PROJECT_ROOT/scripts/pipelines}"
 
-source "$LIB_DIR/yaml.sh"
-source "$LIB_DIR/validate.sh"
-source "$LIB_DIR/deps.sh"
-source "$LIB_DIR/provider.sh"
+# Source sibling files using script's own directory (not LIB_DIR which may be overridden)
+source "$COMPILE_SCRIPT_DIR/yaml.sh"
+source "$COMPILE_SCRIPT_DIR/validate.sh"
+source "$COMPILE_SCRIPT_DIR/deps.sh"
+source "$COMPILE_SCRIPT_DIR/provider.sh"
 
 print_compile_usage() {
   cat >&2 <<'EOF'

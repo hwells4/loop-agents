@@ -548,7 +548,12 @@ lint_all() {
       validate_loop "$target_name"
       return $?
     elif [ "$target_type" = "pipeline" ]; then
-      validate_pipeline "$target_name"
+      # If target_name contains a path separator or ends with .yaml, treat as file path
+      if [[ "$target_name" == */* ]] || [[ "$target_name" == *.yaml ]]; then
+        validate_pipeline_file "$target_name"
+      else
+        validate_pipeline "$target_name"
+      fi
       return $?
     fi
   fi
@@ -717,7 +722,18 @@ dry_run_pipeline() {
   fi
   echo ""
 
-  # Load config
+  # Compile the pipeline to get merged config with overrides applied
+  source "$VALIDATE_SCRIPT_DIR/compile.sh"
+  local tmp_plan=$(mktemp)
+  trap "rm -f '$tmp_plan'" EXIT
+  if ! compile_pipeline_file "$file" "$tmp_plan" "$session" 2>/dev/null; then
+    echo "**Warning: Could not compile pipeline, falling back to raw config**"
+    local plan_json="{}"
+  else
+    local plan_json=$(cat "$tmp_plan")
+  fi
+
+  # Load raw config for basic info
   local config=$(yaml_to_json "$file")
   local description=$(json_get "$config" ".description" "")
   local stages_len=$(json_array_len "$config" ".stages")
@@ -739,23 +755,23 @@ dry_run_pipeline() {
     # Bug fix: check .stage first, fall back to .loop (loop-agents-sam)
     local stage_loop=$(echo "$stage" | jq -r ".stage // empty")
     [ -z "$stage_loop" ] && stage_loop=$(echo "$stage" | jq -r ".loop // empty")
-    local stage_runs=$(echo "$stage" | jq -r ".runs // 1")
+
+    # Get termination info from compiled plan (which has overrides merged)
+    local compiled_node=$(echo "$plan_json" | jq -r ".nodes[$i] // {}")
+    local term_type=$(echo "$compiled_node" | jq -r '.termination.type // empty')
+    local term_max=$(echo "$compiled_node" | jq -r '.termination.max // empty')
 
     echo "### Stage $((i+1)): $stage_name"
     echo ""
     if [ -n "$stage_loop" ]; then
       echo "- **Stage:** $stage_loop"
-      echo "- **Max iterations:** $stage_runs"
-
-      # Get loop's termination strategy (v3)
-      local loop_config=$(yaml_to_json "${VALIDATE_SCRIPT_DIR}/../stages/$stage_loop/stage.yaml" 2>/dev/null)
-      local term_type=$(json_get "$loop_config" ".termination.type" "")
+      echo "- **Max iterations:** ${term_max:-1}"
       if [ -n "$term_type" ]; then
         echo "- **Termination:** $term_type"
       fi
     else
       echo "- **Inline prompt stage**"
-      echo "- **Runs:** $stage_runs"
+      echo "- **Runs:** ${term_max:-1}"
     fi
     echo ""
   done

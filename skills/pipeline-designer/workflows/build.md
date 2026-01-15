@@ -261,6 +261,22 @@ Either:
    Args: .claude/pipeline-specs/{name}.yaml
    ```
 
+4. **Validate the created pipeline (MANDATORY):**
+   ```bash
+   # Lint - must pass with no errors
+   ./scripts/run.sh lint pipeline {name}
+
+   # Dry-run - verify config is correct
+   ./scripts/run.sh dry-run pipeline {name} preview
+   ```
+
+   If lint fails or dry-run shows wrong values:
+   - Fix the pipeline YAML
+   - Re-run validation
+   - Do not proceed until clean
+
+5. Show user the validation output and confirm ready to run
+
 ## Success Criteria
 
 - [ ] Genuine understanding achieved (not just checklist)
@@ -269,3 +285,6 @@ Either:
 - [ ] User gave explicit confirmation
 - [ ] Spec saved to `.claude/pipeline-specs/{name}.yaml`
 - [ ] Pipeline-creator invoked with spec path
+- [ ] Lint passed with no errors
+- [ ] Dry-run shows correct termination, iterations, providers
+- [ ] User shown validation output before run

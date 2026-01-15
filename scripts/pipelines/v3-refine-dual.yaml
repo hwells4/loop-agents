@@ -1,0 +1,22 @@
+# V3 Task Refinement - Dual Provider Test
+# Sequential: Codex first, then Claude
+
+name: v3-refine-dual
+description: Test multi-provider sequential refinement
+
+stages:
+  - name: refine-codex
+    stage: refine-tasks
+    provider: codex
+    model: gpt-5.2-codex
+    termination:
+      type: fixed
+      iterations: 1
+
+  - name: refine-claude
+    stage: refine-tasks
+    provider: claude
+    model: opus
+    termination:
+      type: fixed
+      iterations: 1

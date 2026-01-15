@@ -63,7 +63,13 @@ Step 3: VALIDATE & CONFIRM
 ├─ Present to user
 └─ Get yes/no confirmation
 
-OUTPUT: Confirmed architecture spec
+Step 4: LINT & DRY-RUN (Mandatory)
+├─ Run: ./scripts/run.sh lint pipeline {name}
+├─ Run: ./scripts/run.sh dry-run pipeline {name} preview
+├─ Fix any errors before proceeding
+└─ Show user the validated output
+
+OUTPUT: Confirmed, validated architecture spec
 ```
 
 **CRITICAL:** Cannot proceed to confirmation without spawning the `pipeline-architect` subagent. Defined in `agents/pipeline-architect.md`.
@@ -220,4 +226,6 @@ Task(
 - [ ] For build: architecture agent spawned (mandatory)
 - [ ] Architecture presented clearly to user
 - [ ] User gave explicit yes/no confirmation
+- [ ] On yes: lint passed (no errors)
+- [ ] On yes: dry-run shows correct config
 - [ ] On yes: spec saved and pipeline-creator invoked
