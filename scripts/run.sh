@@ -88,6 +88,7 @@ show_help() {
   echo "  <stage-type> [session] [max]     Run a single-stage pipeline (shortcut)"
   echo "  loop <type> [session] [max]     Run a single-stage pipeline (explicit)"
   echo "  pipeline <file> [session]       Run a multi-stage pipeline"
+  echo "  list [count]                    List recent pipeline runs (default: 10)"
   echo "  lint [loop|pipeline] [name]     Validate configurations"
   echo "  dry-run <loop|pipeline> <name> [session]  Preview execution"
   echo "  test [name] [--verbose]         Run tests (all or specific)"
@@ -259,6 +260,14 @@ case "$1" in
       formatted=$(events_format_event_line "$line")
       [ -n "$formatted" ] && echo "$formatted"
     done < <(tail -n "$lines" -F "$events_file")
+    exit 0
+    ;;
+
+  list|runs)
+    shift
+    count=${1:-10}
+    source "$LIB_DIR/list.sh"
+    list_runs "$count"
     exit 0
     ;;
 

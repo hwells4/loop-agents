@@ -69,10 +69,15 @@ First, read the accumulated progress to see what's been researched:
 cat ${PROGRESS}
 ```
 
-Then read the current plan:
+Then read the current plan (from inputs or filesystem fallback):
 
 ```bash
-cat tdd-prose-plan.md
+# Prefer plans from inputs, fallback to filesystem search
+PLAN=$(jq -r '.inputs.from_initial[0] // .inputs.from_stage | to_entries[0]? | .value[0] // empty' ${CTX} 2>/dev/null)
+if [ -z "$PLAN" ]; then
+  PLAN=$(ls docs/plans/*.md plans/*.md 2>/dev/null | head -1)
+fi
+cat "$PLAN"
 ```
 
 ---
@@ -157,7 +162,7 @@ Append findings to the progress file with clear structure:
 
 ## Step 5: Apply to Plan
 
-If you have actionable findings, edit `tdd-prose-plan.md` directly:
+If you have actionable findings, edit the plan file directly:
 
 - Add integration notes where external tools can help
 - Simplify sections where we're reinventing the wheel

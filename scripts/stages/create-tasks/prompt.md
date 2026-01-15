@@ -4,6 +4,8 @@ Read context from: ${CTX}
 Progress file: ${PROGRESS}
 Session: ${SESSION_NAME}
 
+${CONTEXT}
+
 ## Your Task
 
 You are breaking down a technical plan into executable beads (tasks).
@@ -11,11 +13,29 @@ You are breaking down a technical plan into executable beads (tasks).
 ### Step 1: Load the Plan
 
 ```bash
-# Check for input files
-jq -r '.inputs.from_initial[]' ${CTX} 2>/dev/null | while read file; do
-  echo "=== Plan: $file ==="
+# Read initial inputs (CLI --input flags)
+jq -r '.inputs.from_initial[]? // empty' ${CTX} | while read file; do
+  echo "=== Plan from initial input: $file ==="
   cat "$file"
 done
+
+# Read outputs from previous stages (multi-stage pipelines)
+jq -r '.inputs.from_stage | to_entries[]? | .value[]? // empty' ${CTX} | while read file; do
+  echo "=== Plan from previous stage: $file ==="
+  cat "$file"
+done
+
+# Read outputs from parallel blocks (multi-provider analysis)
+jq -r '.inputs.from_parallel | to_entries[]? | .value[]? // empty' ${CTX} | while read file; do
+  echo "=== Plan from parallel provider: $file ==="
+  cat "$file"
+done
+
+# Fallback to filesystem search if no inputs found
+if ! jq -e '.inputs | ((.from_initial | length > 0) or (.from_stage | length > 0) or (.from_parallel | length > 0))' ${CTX} > /dev/null 2>&1; then
+  echo "No inputs found, searching filesystem..."
+  cat plans/*.md docs/plans/*.md 2>/dev/null | head -200
+fi
 ```
 
 ### Step 2: Analyze the Plan
