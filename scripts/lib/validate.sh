@@ -206,7 +206,65 @@ validate_loop() {
     fi
   fi
 
-  # L011: Check template variables in prompt (warning)
+  # L011: Validate provider
+  local provider=$(json_get "$config" ".provider" "claude")
+  case "$provider" in
+    claude|claude-code|anthropic|codex|openai) ;;
+    *)
+      errors+=("Unknown provider: $provider (valid: claude, codex)")
+      ;;
+  esac
+
+  # L012: Validate model for provider
+  local model=$(json_get "$config" ".model" "")
+  if [ -n "$model" ]; then
+    local base_model="${model%%:*}"
+    local reasoning=""
+    [[ "$model" == *:* ]] && reasoning="${model#*:}"
+
+    case "$provider" in
+      claude|claude-code|anthropic)
+        case "$base_model" in
+          opus|claude-opus|opus-4|opus-4.5|sonnet|claude-sonnet|sonnet-4|haiku|claude-haiku) ;;
+          *)
+            errors+=("Unknown Claude model: $base_model")
+            ;;
+        esac
+        ;;
+      codex|openai)
+        case "$base_model" in
+          gpt-5.2-codex|gpt-5.1-codex-max|gpt-5.1-codex-mini|gpt-5.1-codex|gpt-5-codex|gpt-5-codex-mini) ;;
+          *)
+            errors+=("Unknown Codex model: $base_model")
+            ;;
+        esac
+        # L013: Validate reasoning effort
+        if [ -n "$reasoning" ]; then
+          case "$reasoning" in
+            minimal|low|medium|high|xhigh) ;;
+            *)
+              errors+=("Unknown reasoning effort: $reasoning (valid: minimal, low, medium, high, xhigh)")
+              ;;
+          esac
+          # L014: Check Codex version for xhigh
+          if [ "$reasoning" = "xhigh" ] && command -v codex &>/dev/null; then
+            local codex_version
+            codex_version=$(codex --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            if [ -n "$codex_version" ]; then
+              local major minor
+              major=$(echo "$codex_version" | cut -d. -f1)
+              minor=$(echo "$codex_version" | cut -d. -f2)
+              if [ "$major" -eq 0 ] && [ "$minor" -lt 85 ]; then
+                errors+=("Codex CLI 0.85.0+ required for xhigh (found $codex_version). Run: npm update -g @openai/codex")
+              fi
+            fi
+          fi
+        fi
+        ;;
+    esac
+  fi
+
+  # L015: Check template variables in prompt (warning)
   if [ -f "$dir/$prompt_file" ]; then
     local prompt_content=$(cat "$dir/$prompt_file")
     # Extract ${VAR} patterns
