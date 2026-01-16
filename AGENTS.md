@@ -1,6 +1,6 @@
 # AGENTS Constitution
 
-Codex is a compiler for intent. This document is the constitution that constrains every run so the agent can produce auditable, high-quality changes.
+Codex is a compiler for intent. This document is the constitution that constrains every run so the agent can produce auditable, high-quality changes. For Codex-specific guidance (running pipelines without skills/hooks), see `docs/codex.md`.
 
 ## Execution Envelope
 
@@ -44,7 +44,7 @@ Every run must produce:
 
 ## CLI & Dependencies
 
-Dependencies required on every workstation: `jq`, `claude`, `codex`, `tmux`, and `bd`.
+Dependencies required on every workstation: `jq`, `claude`, `codex`, `tmux`, and `bd`. For Codex-specific guidance (running pipelines without skills/hooks), see `docs/codex.md`.
 
 Common commands (all via `./scripts/run.sh`):
 
@@ -62,36 +62,128 @@ Common commands (all via `./scripts/run.sh`):
 ./scripts/run.sh ralph auth 25 --resume       # continue crashed session
 ./scripts/run.sh status auth                  # inspect status/locks
 ./scripts/run.sh                              # list stages/pipelines
+
+# Run under Codex provider
+./scripts/run.sh ralph auth 25 --provider=codex --model=gpt-5.2-codex
 ```
 
 ## Skills & Slash Commands
 
-Skills (under `skills/`) extend Codex/Caudex; invoke them inside Claude via slash commands:
+Skills (under `skills/`) extend Codex/Claude; invoke them inside Claude via slash commands:
 
 | Skill | Slash Command | Purpose |
 |-------|---------------|---------|
 | `start` | `/start [pipeline]` | Discover and launch pipelines |
 | `sessions` | `/sessions [list|start]` | tmux session management |
+| `work` | `/work [task]` | Quick-start Codex agent for implementation (fire-and-forget) |
+| `monitor` | `/monitor [mode]` | Active debugging companion for pipeline sessions |
 | `plan-refinery` | `/plan-refinery` | Iterative planning with Opus subagents |
 | `create-prd` | `/agent-pipelines:create-prd` | Generate PRDs via guided discovery |
 | `create-tasks` | `/agent-pipelines:create-tasks` | Break PRDs into beads |
 | `pipeline-designer` | `/pipeline` | Architect new pipelines |
 | `pipeline-creator` | `/pipeline create` | Scaffold stage.yaml + prompt.md |
 | `pipeline-editor` | `/pipeline edit` | Modify existing stages/pipelines |
+| `test-audit` | `/test-audit` | Audit test coverage and quality |
+| `test-setup` | `/test-setup` | Set up testing infrastructure |
 
 User-facing slash commands under `commands/` (`/ralph`, `/refine`, `/ideate`, `/robot-mode`, `/readme-sync`, etc.) should be referenced verbatim when guiding humans or other agents.
 
+## Termination Strategies
+
+| Type | Behavior | When to Use |
+|------|----------|-------------|
+| `fixed` | Run exactly N iterations | Implementation loops, brainstorming |
+| `judgment` | LLM judge evaluates progress; requires N consecutive stops | Plan refinement, review stages |
+| `queue` | Stop when external queue (`bd ready`) is empty | Work-clearing loops |
+
+**Judgment termination** uses an LLM judge to evaluate iteration history and trend detection. The judge auto-enables for `type: judgment` stages and analyzes status.json decisions to determine plateau.
+
+```yaml
+termination:
+  type: judgment
+  min_iterations: 2     # Start checking after this many
+  consensus: 2          # Consecutive stops needed
+  max: 10               # Hard cap (optional)
+```
+
+Agents write `status.json` with: `decision` (continue/stop/error), `reason`, `summary`, `work`, `errors`.
+
 ## Operational Playbooks
 
-- **Feature flow**: `/sessions plan` or `/agent-pipelines:create-prd` → `/agent-pipelines:create-tasks` → `/refine` (5+5 plan iterations) → `/ralph` until beads close.
-- **Bug-hunt flow**: `./scripts/run.sh pipeline bug-hunt.yaml <session>` which executes Discover (8), Elegance (≤5), Refine (3), Fix (25) stages sequentially.
+### Feature Implementation
+1. `/sessions plan` or `/agent-pipelines:create-prd` → Gather requirements, save to `docs/plans/`
+2. `/agent-pipelines:create-tasks` → Break PRD into beads tagged `pipeline/{session}`
+3. `/refine` → Run refinement pipeline (default: 5+5 iterations)
+4. `/ralph` → Run Ralph loop until all beads complete
+
+### TDD Implementation
+```bash
+./scripts/run.sh pipeline tdd-implement.yaml my-feature
+```
+Stages: plan-tdd (5) → elegance (1) → create-beads (1) → refine-tasks (3) → ralph (30) → code-review (1) → test-review (1)
+
+### Bug Hunting
+```bash
+./scripts/run.sh pipeline bug-hunt.yaml my-session
+```
+Stages: Discover (8) → Elegance (≤5) → Refine (3) → Fix (25)
+
+### Test Coverage Discovery
+```bash
+./scripts/run.sh pipeline test-gap-discovery.yaml my-session
+```
+Stages: scan (3) → analyze (2) → plan (1)
+
+### Parallel Documentation Audit
+```bash
+./scripts/run.sh pipeline parallel-docs.yaml my-session
+```
+Runs Claude and Codex in parallel to audit docs, then synthesizes and implements fixes.
+
+### Critical Review
+Use `fresh-eyes` stage with Codex xhigh reasoning for maximum scrutiny of plans before implementation.
 
 ## Debugging & Recovery
 
 - Attach to tmux: `tmux attach -t pipeline-<session>`.
 - Inspect progress/state: `cat .claude/pipeline-runs/<session>/progress-<session>.md` or `state.json | jq`.
 - Resume after crash: rerun with `--resume`; engine tracks `iteration_started`/`iteration_completed`.
-- Manage locks: lock files live in `.claude/locks/<session>.lock`; verify PID before removing. Use `--force` only when the prior process is gone.
+- Check session status: `./scripts/run.sh status <session>` shows locks, state, and progress.
+
+### Session Locks
+
+Locks prevent concurrent sessions with the same name. Uses flock when available, falls back to shlock or noclobber.
+
+```bash
+ls .claude/locks/                          # List active locks
+cat .claude/locks/<session>.lock | jq      # View lock details (PID, start time)
+./scripts/run.sh ralph auth 25 --force     # Override stale lock
+```
+
+When a stale lock is cleaned up, the engine releases any `in_progress` beads labeled `pipeline/<session>` back to `open`.
+
+### Crash Recovery
+
+Sessions automatically detect and recover from crashes (API timeouts, network issues, SIGKILL).
+
+```bash
+# After crash, resume from last completed iteration
+./scripts/run.sh ralph auth 25 --resume
+
+# For parallel blocks, completed providers are skipped on resume
+./scripts/run.sh pipeline multi.yaml my-session --resume
+```
+
+## Providers & Models
+
+Stages can use different AI providers. Claude Code is the default.
+
+| Provider | CLI Flag | Default Model | Skip Permissions Flag |
+|----------|----------|---------------|----------------------|
+| Claude | `--provider=claude` | opus | `--dangerously-skip-permissions` |
+| Codex | `--provider=codex` | gpt-5.2-codex | `--dangerously-bypass-approvals-and-sandbox` |
+
+**Codex reasoning effort**: Use colon syntax `model:reasoning` (e.g., `gpt-5.2-codex:xhigh`). Levels: `minimal`, `low`, `medium`, `high` (default), `xhigh`. Reserve `xhigh` for 1-2 iteration tasks (plan synthesis, critical review). For 5+ iteration loops, use `medium` or `high`—xhigh cost/latency adds up fast.
 
 ## Environment & Context Variables
 
@@ -99,6 +191,31 @@ User-facing slash commands under `commands/` (`/ralph`, `/refine`, `/ideate`, `/
 - Prompts should consume v3 template vars: `${CTX}` (context.json path), `${PROGRESS}`, `${STATUS}`, `${ITERATION}`, `${SESSION_NAME}`, `${CONTEXT}`, `${OUTPUT}`. Legacy names (`${SESSION}`, `${INDEX}`, etc.) still resolve but should be avoided.
 - `context.json` describes inputs from CLI (`inputs.from_initial`), previous stages (`inputs.from_stage`), parallel providers (`inputs.from_parallel`), and command passthroughs (e.g., `.commands.test`). Read it with `jq` instead of hardcoding repo-specific assumptions.
 - When exposing repo commands to agents, define them in pipeline/stage YAML (`commands.test`, `commands.lint`, etc.) or pass them via CLI `--command` overrides so Codex can run the correct tooling without guesswork.
+
+## Parallel Blocks
+
+Run multiple providers concurrently with isolated contexts. Each provider runs stages sequentially; providers execute in parallel.
+
+```yaml
+nodes:
+  - id: dual-refine
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - id: iterate
+          stage: improve-plan
+          termination: { type: judgment, consensus: 2, max: 5 }
+  - id: synthesize
+    stage: elegance
+    inputs:
+      from_parallel: iterate  # Reads outputs from both providers
+```
+
+Key behaviors:
+- Providers have isolated progress/state (no cross-visibility within block)
+- Block waits for all providers before proceeding
+- Any provider failure fails the entire block
+- On `--resume`, completed providers are skipped
 
 ## Issue Tracking
 
@@ -125,17 +242,116 @@ Agents live in `agents/` at the plugin root (per Claude Code plugin structure):
 
 Invoke via Task tool: `subagent_type: "pipeline-architect"` with requirements summary.
 
+## Available Stages
+
+Stages are defined in `scripts/stages/<name>/`. Each has `stage.yaml` (config) and `prompt.md` (agent instructions).
+
+### Implementation Stages
+| Stage | Provider | Termination | Purpose |
+|-------|----------|-------------|---------|
+| `ralph` | claude | fixed | The original Ralph loop—work through beads |
+| `codex-work` | codex | fixed | Codex implementation agent |
+| `tdd-work` | claude | fixed | Strict TDD implementation loop—tests first |
+
+### Planning & Refinement Stages
+| Stage | Provider | Termination | Purpose |
+|-------|----------|-------------|---------|
+| `improve-plan` | claude | judgment | Plan refinement |
+| `refine-tasks` | claude | judgment | Task/bead refinement |
+| `research-plan` | claude | judgment | Research-driven planning |
+| `create-tasks` | claude | fixed | Break plans into beads |
+| `tdd-plan-refine` | claude | judgment | TDD plan refinement |
+| `tdd-create-beads` | claude | fixed | Create beads for TDD workflow |
+
+### Review & Quality Stages
+| Stage | Provider | Termination | Purpose |
+|-------|----------|-------------|---------|
+| `elegance` | claude | judgment | Code elegance review |
+| `code-review` | claude | judgment | Implementation quality review |
+| `fresh-eyes` | codex (xhigh) | judgment | Critical plan review with maximum reasoning |
+
+### Testing Stages
+| Stage | Provider | Termination | Purpose |
+|-------|----------|-------------|---------|
+| `test-scanner` | claude | judgment | Test coverage gap discovery |
+| `test-analyzer` | claude | judgment | Analyze and prioritize test gaps |
+| `test-planner` | claude | fixed | Convert analysis into actionable beads |
+| `test-review` | claude | judgment | Review test implementation quality |
+
+### Bug & Discovery Stages
+| Stage | Provider | Termination | Purpose |
+|-------|----------|-------------|---------|
+| `bug-discovery` | claude | fixed | Fresh-eyes bug exploration |
+| `bug-triage` | claude | judgment | Bug triage and fix design |
+| `idea-wizard` | claude | fixed | Ideation and brainstorming |
+| `idea-wizard-loom` | claude | fixed | Extended ideation with loom context |
+
+### Documentation Stages
+| Stage | Provider | Termination | Purpose |
+|-------|----------|-------------|---------|
+| `doc-audit` | claude | fixed | Analyze codebase for documentation gaps |
+| `doc-implement` | claude | fixed | Synthesize findings and implement fixes |
+| `doc-updater` | claude | judgment | Systematically update documentation |
+| `readme-sync` | claude | fixed | Keep README aligned with codebase |
+| `robot-mode` | claude | fixed | Design CLI interfaces for agent ergonomics |
+
+Use `./scripts/run.sh` (no args) to list all available stages and pipelines.
+
 ## Project Structure & Module Organization
 
-The automation engine lives in `scripts/`: `run.sh` is the CLI entry point, `engine.sh` drives each iteration, and `lib/` holds reusable YAML/state helpers. Stage prompts plus stop criteria live in `scripts/stages/<stage>/{stage.yaml,prompt.md}`, while composed flows sit in `scripts/pipelines/*.yaml` with human-facing cues in `commands/`. Agent briefs live in `agents/`, durable references in `docs/`, reusable prompt snippets in `skills/`, and every regression fixture or shell suite belongs in `scripts/tests/` beside the logic it protects.
+```
+scripts/
+├── engine.sh                 # Unified pipeline engine
+├── run.sh                    # CLI entry point (converts all commands to pipeline calls)
+├── lib/                      # Shared utilities
+│   ├── compile.sh            # Pipeline YAML→plan.json compilation
+│   ├── context.sh            # v3 context.json generation
+│   ├── deciders.sh           # Termination decision logic
+│   ├── deps.sh               # Dependency checking (jq, tmux, etc.)
+│   ├── events.sh             # Append-only event log (events.jsonl)
+│   ├── judge.sh              # LLM judge for plateau detection
+│   ├── list.sh               # List stages/pipelines
+│   ├── lock.sh               # Session locking (flock-based)
+│   ├── mock.sh               # Mock execution for testing
+│   ├── notify.sh             # Desktop notifications + logging
+│   ├── parallel.sh           # Parallel block execution
+│   ├── paths.sh              # Path utilities
+│   ├── progress.sh           # Accumulated context files
+│   ├── provider.sh           # Provider abstraction (Claude, Codex)
+│   ├── resolve.sh            # Template variable resolution
+│   ├── result.sh             # Iteration result handling
+│   ├── runtime.sh            # Unified v3 runtime executor
+│   ├── spy.sh                # Debugging/inspection utilities
+│   ├── stage.sh              # Stage loading utilities
+│   ├── state.sh              # JSON iteration history + crash recovery
+│   ├── status.sh             # v3 status.json validation
+│   ├── test.sh               # Test framework utilities
+│   ├── validate.sh           # Lint and dry-run validation
+│   ├── yaml.sh               # YAML→JSON conversion
+│   └── completions/          # Termination strategies
+│       ├── beads-empty.sh    # Stop when queue empty (type: queue)
+│       ├── plateau.sh        # Stop on consensus (type: judgment)
+│       └── fixed-n.sh        # Stop after N iterations (type: fixed)
+├── stages/                   # Stage definitions
+├── pipelines/                # Multi-stage pipeline configs
+├── prompts/                  # Shared prompt templates
+└── tests/                    # Test suites and fixtures
+
+skills/                       # Claude Code skill extensions
+commands/                     # Slash command documentation
+agents/                       # Specialized agent definitions
+docs/                         # Reference documentation
+```
 
 ## Build, Test, and Development Commands
 
 - `./scripts/run.sh pipeline bug-hunt.yaml overnight` — run the bundled multi-stage pipeline.
-- `./scripts/run.sh loop ralph auth 25 --tmux` — kick off a single stage with persistent tmux output.
+- `./scripts/run.sh loop ralph auth 25` — kick off a single stage in tmux (default).
 - `./scripts/run.sh lint [loop|pipeline] [name]` — schema-check stage or pipeline definitions.
 - `./scripts/run.sh test [name] --verbose` or `scripts/tests/run_tests.sh --ci` — execute regression suites.
 - `./scripts/run.sh status <session>` — inspect locks before resuming or forcing reruns.
+- `./scripts/run.sh list [count]` — list recent pipeline runs (default: 10).
+- `./scripts/run.sh tail <session> [lines]` — stream event log for observability.
 
 ## Coding Style & Naming Conventions
 
