@@ -36,6 +36,9 @@ Agent Pipelines is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for 
 # Run a multi-stage pipeline
 ./scripts/run.sh pipeline refine.yaml my-session
 
+# Run a pipeline multiple times (3 full runs)
+./scripts/run.sh pipeline refine.yaml my-session 3
+
 # Force start (override existing session lock)
 ./scripts/run.sh ralph auth 25 --force
 

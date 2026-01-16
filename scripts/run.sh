@@ -88,7 +88,7 @@ show_help() {
   echo "Commands:"
   echo "  <stage-type> [session] [max]     Run a single-stage pipeline (shortcut)"
   echo "  loop <type> [session] [max]     Run a single-stage pipeline (explicit)"
-  echo "  pipeline <file> [session]       Run a multi-stage pipeline"
+  echo "  pipeline <file> [session] [runs] Run a multi-stage pipeline (runs = how many times)"
   echo "  list [count]                    List recent pipeline runs (default: 10)"
   echo "  lint [loop|pipeline] [name]     Validate configurations"
   echo "  dry-run <loop|pipeline> <name> [session]  Preview execution"
@@ -290,8 +290,9 @@ case "$1" in
 
   pipeline)
     shift
-    PIPELINE_FILE=${1:?"Usage: run.sh pipeline <file> [session]"}
+    PIPELINE_FILE=${1:?"Usage: run.sh pipeline <file> [session] [runs]"}
     SESSION_NAME=${2:-""}
+    PIPELINE_RUNS=${3:-1}
 
     # Derive session name from pipeline if not provided
     if [ -z "$SESSION_NAME" ]; then
@@ -301,10 +302,10 @@ case "$1" in
     fi
 
     if [ "$TMUX_FLAG" = "true" ]; then
-      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "${@:3}"
+      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "$PIPELINE_RUNS" "${@:4}"
       exit 0
     else
-      exec "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "${@:3}"
+      exec "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "$PIPELINE_RUNS" "${@:4}"
     fi
     ;;
 

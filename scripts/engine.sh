@@ -1229,6 +1229,7 @@ case "$MODE" in
   pipeline)
     # Check for --single-stage flag (used by run.sh loop shortcut)
     SINGLE_STAGE=""
+    PIPELINE_RUNS=1
     if [ "$1" = "--single-stage" ]; then
       SINGLE_STAGE="true"
       shift
@@ -1236,8 +1237,12 @@ case "$MODE" in
       SESSION=${2:-"$STAGE_TYPE"}
       MAX_ITERATIONS=${3:-25}
     else
-      PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force] [--resume] [--recompile]"}
+      PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [runs] [--force] [--resume] [--recompile]"}
       SESSION=$2
+      # Third positional arg is pipeline runs (how many times to run the whole pipeline)
+      if [[ "${3:-}" =~ ^[0-9]+$ ]]; then
+        PIPELINE_RUNS=$3
+      fi
       # For pipelines, derive session name if not provided
       if [ -z "$SESSION" ]; then
         pipeline_json=$(yaml_to_json "$PIPELINE_FILE" 2>/dev/null || echo "{}")
@@ -1312,7 +1317,39 @@ case "$MODE" in
 
       run_stage "$STAGE_TYPE" "$SESSION" "$MAX_ITERATIONS" "$RUN_DIR" "0" "$START_ITERATION"
     else
-      run_pipeline "$PIPELINE_FILE" "$SESSION" "$START_STAGE" "$START_ITERATION"
+      # Run pipeline PIPELINE_RUNS times
+      for pipeline_run in $(seq 1 $PIPELINE_RUNS); do
+        if [ "$PIPELINE_RUNS" -gt 1 ]; then
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║  PIPELINE RUN $pipeline_run of $PIPELINE_RUNS"
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          echo ""
+        fi
+
+        # Only use resume params on first run
+        if [ "$pipeline_run" -eq 1 ]; then
+          run_pipeline "$PIPELINE_FILE" "$SESSION" "$START_STAGE" "$START_ITERATION"
+        else
+          # Subsequent runs start fresh (stage 0, iteration 1)
+          # But reuse the same session directory (progress accumulates)
+          run_pipeline "$PIPELINE_FILE" "$SESSION" "0" "1"
+        fi
+
+        # Brief pause between runs (except last)
+        if [ "$pipeline_run" -lt "$PIPELINE_RUNS" ]; then
+          echo ""
+          echo "Waiting 3 seconds before next pipeline run..."
+          sleep 3
+        fi
+      done
+
+      if [ "$PIPELINE_RUNS" -gt 1 ]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║  ALL $PIPELINE_RUNS PIPELINE RUNS COMPLETE"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+      fi
     fi
     ;;
 
@@ -1355,7 +1392,7 @@ case "$MODE" in
     echo "Everything is a pipeline. Use run.sh for the user-friendly interface."
     echo ""
     echo "Modes:"
-    echo "  pipeline <file.yaml> [session]              - Run a multi-stage pipeline"
+    echo "  pipeline <file.yaml> [session] [runs]       - Run a multi-stage pipeline (runs times)"
     echo "  pipeline --single-stage <type> [session] [max] - Run a single-loop pipeline"
     echo "  status <session>                            - Check session status"
     echo ""
