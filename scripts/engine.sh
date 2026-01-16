@@ -759,13 +759,13 @@ run_pipeline() {
               stages: [
                 .stages[] | {
                   name: .id,
-                  stage: (.ref // empty),
-                  model: (.model // empty),
-                  prompt: (.prompt // empty),
-                  prompt_path: (.prompt_path // empty),
-                  context: (.context // empty),
-                  output_path: (.output_path // empty),
-                  delay: (.delay // empty),
+                  stage: (.ref // null),
+                  model: (.model // null),
+                  prompt: (.prompt // null),
+                  prompt_path: (.prompt_path // null),
+                  context: (.context // null),
+                  output_path: (.output_path // null),
+                  delay: (.delay // null),
                   termination: (.termination // {}),
                   inputs: (.inputs // {})
                 }
@@ -1297,6 +1297,19 @@ case "$MODE" in
     if [ "$SINGLE_STAGE" = "true" ]; then
       # Single-stage pipeline: run the loop directly using run_stage
       mkdir -p "$RUN_DIR"
+
+      # Handle CLI inputs for single-stage loops (write to plan.json for context.sh)
+      if [ -n "$PIPELINE_CLI_INPUTS" ]; then
+        _resolved_inputs=$(resolve_initial_inputs "$PIPELINE_CLI_INPUTS")
+        _plan_file="$RUN_DIR/plan.json"
+        if [ -f "$_plan_file" ]; then
+          _updated=$(jq --argjson inputs "$_resolved_inputs" '.session.inputs = $inputs' "$_plan_file")
+          echo "$_updated" > "$_plan_file"
+        else
+          jq -n --argjson inputs "$_resolved_inputs" '{session: {inputs: $inputs}}' > "$_plan_file"
+        fi
+      fi
+
       run_stage "$STAGE_TYPE" "$SESSION" "$MAX_ITERATIONS" "$RUN_DIR" "0" "$START_ITERATION"
     else
       run_pipeline "$PIPELINE_FILE" "$SESSION" "$START_STAGE" "$START_ITERATION"

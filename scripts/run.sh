@@ -34,6 +34,7 @@ for i in $(seq 1 $#); do
     --provider=*) export PIPELINE_CLI_PROVIDER="${arg#*=}" ;;
     --model=*) export PIPELINE_CLI_MODEL="${arg#*=}" ;;
     --context=*) export PIPELINE_CLI_CONTEXT="${arg#*=}" ;;
+    --input=*) INPUT_FILES+=("${arg#*=}") ;;
     --input)
       next_i=$((i + 1))
       INPUT_FILES+=("${!next_i}")
