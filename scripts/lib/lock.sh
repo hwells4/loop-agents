@@ -23,6 +23,138 @@ detect_flock() {
   echo "noclobber"
 }
 
+_file_lock_timestamp() {
+  date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S
+}
+
+_write_file_lock_metadata() {
+  local lock_target=$1
+  local meta_file=$2
+  local timestamp
+  timestamp=$(_file_lock_timestamp)
+
+  mkdir -p "$(dirname "$meta_file")"
+  jq -n \
+    --arg path "$lock_target" \
+    --arg pid "$$" \
+    --arg started "$timestamp" \
+    '{path: $path, pid: ($pid | tonumber), started_at: $started}' > "$meta_file"
+}
+
+_clear_file_lock_metadata() {
+  local meta_file=$1
+  [ -n "$meta_file" ] && rm -f "$meta_file"
+}
+
+_with_file_lock_inner() {
+  local lock_target=$1
+  local meta_file=$2
+  shift 2
+
+  _write_file_lock_metadata "$lock_target" "$meta_file"
+  "$@"
+  local result=$?
+  _clear_file_lock_metadata "$meta_file"
+  return $result
+}
+
+# Execute command with an exclusive lock for a target file.
+# Usage: with_exclusive_file_lock "$target" [timeout_seconds] command [args...]
+with_exclusive_file_lock() {
+  local lock_target=$1
+  shift
+
+  if [ -z "$lock_target" ]; then
+    echo "Error: with_exclusive_file_lock requires a target path" >&2
+    return 1
+  fi
+
+  local timeout=${FILE_LOCK_TIMEOUT:-""}
+  if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
+    timeout=$1
+    shift
+  fi
+
+  if [ $# -eq 0 ]; then
+    echo "Error: with_exclusive_file_lock requires a command" >&2
+    return 1
+  fi
+
+  local lock_tool
+  lock_tool=$(detect_flock)
+  local lock_file="${lock_target}.lock"
+  mkdir -p "$(dirname "$lock_file")"
+
+  if [ "$lock_tool" = "flock" ]; then
+    (
+      exec 9<> "$lock_file"
+      if [ -n "$timeout" ]; then
+        flock -x -w "$timeout" 9 || exit 1
+      else
+        flock -x 9 || exit 1
+      fi
+      "$@"
+    )
+    return $?
+  fi
+
+  (
+    local start_time=$SECONDS
+    while true; do
+      if [ "$lock_tool" = "shlock" ]; then
+        if shlock -f "$lock_file" -p "$$" >/dev/null 2>&1; then
+          break
+        fi
+      else
+        if (set -C; echo "$$" > "$lock_file") 2>/dev/null; then
+          break
+        fi
+      fi
+
+      if [ -n "$timeout" ]; then
+        local waited=$((SECONDS - start_time))
+        if [ "$waited" -ge "$timeout" ]; then
+          exit 1
+        fi
+      fi
+      sleep 0.05
+    done
+    trap 'rm -f "$lock_file"' EXIT
+    "$@"
+  )
+}
+
+# Execute command with an exclusive lock and metadata tracking.
+# Usage: with_file_lock "$target" [timeout_seconds] command [args...]
+with_file_lock() {
+  local lock_target=$1
+  shift
+
+  if [ -z "$lock_target" ]; then
+    echo "Error: with_file_lock requires a target path" >&2
+    return 1
+  fi
+
+  local timeout=${FILE_LOCK_TIMEOUT:-""}
+  if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
+    timeout=$1
+    shift
+  fi
+
+  if [ $# -eq 0 ]; then
+    echo "Error: with_file_lock requires a command" >&2
+    return 1
+  fi
+
+  local meta_file="${lock_target}.lock.meta"
+
+  if [ -n "$timeout" ]; then
+    with_exclusive_file_lock "$lock_target" "$timeout" _with_file_lock_inner "$lock_target" "$meta_file" "$@"
+  else
+    with_exclusive_file_lock "$lock_target" _with_file_lock_inner "$lock_target" "$meta_file" "$@"
+  fi
+}
+
 _write_lock_metadata() {
   local session=$1
   local lock_file=$2

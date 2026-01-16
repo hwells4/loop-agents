@@ -6,6 +6,13 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   set -euo pipefail
 fi
 
+EVENTS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${LIB_DIR:-$EVENTS_SCRIPT_DIR}"
+
+if [ -f "$LIB_DIR/lock.sh" ]; then
+  source "$LIB_DIR/lock.sh"
+fi
+
 # Build events.jsonl path for a session.
 # Usage: events_file_path "$session" ["$run_root"]
 events_file_path() {
@@ -38,8 +45,14 @@ _warn_invalid_event_line() {
   fi
 }
 
-# Append event to events.jsonl using atomic temp file + mv.
+# Append event to events.jsonl with an exclusive lock.
 # Usage: append_event "$type" "$session" "$cursor_json" "$data_json"
+_do_append_event() {
+  local events_file=$1
+  local event_json=$2
+  printf '%s\n' "$event_json" >> "$events_file"
+}
+
 append_event() {
   local type=$1
   local session=$2
@@ -72,30 +85,10 @@ append_event() {
     return 1
   fi
 
-  local tmp_event
-  tmp_event=$(mktemp)
-  printf '%s\n' "$event_json" > "$tmp_event"
-
-  if [ -f "$events_file" ]; then
-    local tmp_combined
-    tmp_combined=$(mktemp)
-    if ! cat "$events_file" "$tmp_event" > "$tmp_combined"; then
-      echo "Error: Failed to append event to $events_file" >&2
-      rm -f "$tmp_event" "$tmp_combined"
-      return 1
-    fi
-    if ! mv "$tmp_combined" "$events_file"; then
-      echo "Error: Failed to finalize events file $events_file" >&2
-      rm -f "$tmp_event" "$tmp_combined"
-      return 1
-    fi
-    rm -f "$tmp_event"
+  if type with_exclusive_file_lock &>/dev/null; then
+    with_exclusive_file_lock "$events_file" _do_append_event "$events_file" "$event_json"
   else
-    if ! mv "$tmp_event" "$events_file"; then
-      echo "Error: Failed to create events file $events_file" >&2
-      rm -f "$tmp_event"
-      return 1
-    fi
+    _do_append_event "$events_file" "$event_json"
   fi
 }
 

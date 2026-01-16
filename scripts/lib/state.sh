@@ -2,6 +2,13 @@
 # Unified State Management
 # Handles state for both single-stage loops and multi-stage pipelines
 
+STATE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${LIB_DIR:-$STATE_SCRIPT_DIR}"
+
+if [ -f "$LIB_DIR/lock.sh" ]; then
+  source "$LIB_DIR/lock.sh"
+fi
+
 # Initialize state file
 # Usage: init_state "$session" "$type" "$run_dir"
 init_state() {
@@ -806,6 +813,12 @@ EOF
 # Write parallel block manifest after all providers complete
 # Usage: write_parallel_manifest "$block_dir" "$block_name" "$block_idx" "$stages" "$providers"
 # Creates: manifest.json with provider outputs
+_state_write_manifest_file() {
+  local manifest_file=$1
+  local manifest_json=$2
+  printf '%s\n' "$manifest_json" > "$manifest_file"
+}
+
 write_parallel_manifest() {
   local block_dir=$1
   local block_name=$2
@@ -880,8 +893,9 @@ write_parallel_manifest() {
     fi
   done
 
-  # Write manifest
-  jq -n \
+  # Build manifest JSON
+  local manifest_json
+  if ! manifest_json=$(jq -n \
     --arg name "$block_name" \
     --argjson index "$block_idx" \
     --argjson stages "$stages_json" \
@@ -891,21 +905,27 @@ write_parallel_manifest() {
       block: {name: $name, index: $index, stages: $stages},
       providers: $providers,
       completed_at: $ts
-    }' > "$manifest_file"
+    }'); then
+    echo "Error: Failed to build parallel manifest JSON" >&2
+    return 1
+  fi
+
+  if type with_exclusive_file_lock &>/dev/null; then
+    with_exclusive_file_lock "$manifest_file" _state_write_manifest_file "$manifest_file" "$manifest_json"
+  else
+    _state_write_manifest_file "$manifest_file" "$manifest_json"
+  fi
 }
 
 # Write parallel block resume hints for crash recovery
 # Usage: write_parallel_resume "$block_dir" "$provider" "$stage_idx" "$iteration" "$status"
-write_parallel_resume() {
-  local block_dir=$1
+_state_update_resume_file() {
+  local resume_file=$1
   local provider=$2
   local stage_idx=$3
   local iteration=$4
   local status=$5
 
-  local resume_file="$block_dir/resume.json"
-
-  # Create or update resume file
   if [ ! -f "$resume_file" ]; then
     echo "{}" > "$resume_file"
   fi
@@ -916,6 +936,22 @@ write_parallel_resume() {
      --arg status "$status" \
      '. + {($provider): {stage_index: $stage, iteration: $iter, status: $status}}' \
      "$resume_file" > "$resume_file.tmp" && mv "$resume_file.tmp" "$resume_file"
+}
+
+write_parallel_resume() {
+  local block_dir=$1
+  local provider=$2
+  local stage_idx=$3
+  local iteration=$4
+  local status=$5
+
+  local resume_file="$block_dir/resume.json"
+
+  if type with_exclusive_file_lock &>/dev/null; then
+    with_exclusive_file_lock "$resume_file" _state_update_resume_file "$resume_file" "$provider" "$stage_idx" "$iteration" "$status"
+  else
+    _state_update_resume_file "$resume_file" "$provider" "$stage_idx" "$iteration" "$status"
+  fi
 }
 
 # Get parallel block resume hint for a provider

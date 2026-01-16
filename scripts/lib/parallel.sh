@@ -21,6 +21,10 @@ if [ -f "$LIB_DIR/events.sh" ]; then
   source "$LIB_DIR/events.sh"
 fi
 
+if [ -f "$LIB_DIR/lock.sh" ]; then
+  source "$LIB_DIR/lock.sh"
+fi
+
 #-------------------------------------------------------------------------------
 # Parallel Event Helpers
 #-------------------------------------------------------------------------------
@@ -120,6 +124,22 @@ parallel_provider_complete_from_events() {
 }
 
 #-------------------------------------------------------------------------------
+# Parallel Provider State Helpers
+#-------------------------------------------------------------------------------
+
+_parallel_update_provider_state() {
+  local provider_state=$1
+  shift
+
+  local tmp_file="${provider_state}.tmp"
+  if ! jq "$@" "$provider_state" > "$tmp_file"; then
+    rm -f "$tmp_file"
+    return 1
+  fi
+  mv "$tmp_file" "$provider_state"
+}
+
+#-------------------------------------------------------------------------------
 # Parallel Provider Execution
 #-------------------------------------------------------------------------------
 
@@ -140,7 +160,11 @@ run_parallel_provider() {
   local provider_state="$provider_dir/state.json"
 
   # Mark provider as running
-  jq '.status = "running"' "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+  if type with_exclusive_file_lock &>/dev/null; then
+    with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" '.status = "running"'
+  else
+    _parallel_update_provider_state "$provider_state" '.status = "running"'
+  fi
 
   node_run=$(parallel_int_or_default "$node_run" 1)
   local provider_cursor
@@ -279,9 +303,15 @@ run_parallel_provider() {
       fi
 
       # Update provider state
-      jq --argjson iter "$iter" --arg stage "$stage_name" \
-        '.iteration = $iter | .current_stage_name = $stage' \
-        "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+      if type with_exclusive_file_lock &>/dev/null; then
+        with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" \
+          --argjson iter "$iter" --arg stage "$stage_name" \
+          '.iteration = $iter | .current_stage_name = $stage'
+      else
+        _parallel_update_provider_state "$provider_state" \
+          --argjson iter "$iter" --arg stage "$stage_name" \
+          '.iteration = $iter | .current_stage_name = $stage'
+      fi
 
       local iter_cursor
       iter_cursor=$(parallel_build_cursor "$node_path" "$node_run" "$iter" "$provider")
@@ -310,8 +340,13 @@ run_parallel_provider() {
       set -e
 
       if [ $exit_code -ne 0 ]; then
-        jq --arg err "Exit code $exit_code" '.status = "failed" | .error = $err' \
-          "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+        if type with_exclusive_file_lock &>/dev/null; then
+          with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" \
+            --arg err "Exit code $exit_code" '.status = "failed" | .error = $err'
+        else
+          _parallel_update_provider_state "$provider_state" \
+            --arg err "Exit code $exit_code" '.status = "failed" | .error = $err'
+        fi
         parallel_emit_event "error" "$session" "$iter_cursor" \
           "$(jq -n --arg msg "Provider $provider exited with $exit_code" --argjson code "$exit_code" \
             --arg stage "$stage_name" '{message: $msg, exit_code: $code, stage: $stage}')" || true
@@ -353,8 +388,13 @@ run_parallel_provider() {
       stage_history=$(echo "$stage_history" | jq --argjson entry "$history_entry" '. + [$entry]')
 
       # Update provider state iteration completed
-      jq --argjson iter "$iter" '.iteration_completed = $iter' \
-        "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+      if type with_exclusive_file_lock &>/dev/null; then
+        with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" \
+          --argjson iter "$iter" '.iteration_completed = $iter'
+      else
+        _parallel_update_provider_state "$provider_state" \
+          --argjson iter "$iter" '.iteration_completed = $iter'
+      fi
 
       parallel_emit_event "worker_complete" "$session" "$iter_cursor" \
         "$(jq -n --arg result "$result_file" --argjson code "$exit_code" '{result_file: $result, exit_code: $code}')" || true
@@ -391,17 +431,32 @@ run_parallel_provider() {
     fi
 
     local final_iter=$(jq -r '.iteration_completed // 0' "$provider_state")
-    jq --arg name "$stage_name" --argjson iters "$final_iter" --arg reason "$term_reason" \
-      '.stages += [{"name": $name, "iterations": $iters, "termination_reason": $reason}]' \
-      "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+    if type with_exclusive_file_lock &>/dev/null; then
+      with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" \
+        --arg name "$stage_name" --argjson iters "$final_iter" --arg reason "$term_reason" \
+        '.stages += [{"name": $name, "iterations": $iters, "termination_reason": $reason}]'
+    else
+      _parallel_update_provider_state "$provider_state" \
+        --arg name "$stage_name" --argjson iters "$final_iter" --arg reason "$term_reason" \
+        '.stages += [{"name": $name, "iterations": $iters, "termination_reason": $reason}]'
+    fi
 
     # Reset iteration counters for next stage
-    jq '.iteration = 0 | .iteration_completed = 0' \
-      "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+    if type with_exclusive_file_lock &>/dev/null; then
+      with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" \
+        '.iteration = 0 | .iteration_completed = 0'
+    else
+      _parallel_update_provider_state "$provider_state" \
+        '.iteration = 0 | .iteration_completed = 0'
+    fi
   done
 
   # Mark provider complete
-  jq '.status = "complete"' "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+  if type with_exclusive_file_lock &>/dev/null; then
+    with_exclusive_file_lock "$provider_state" _parallel_update_provider_state "$provider_state" '.status = "complete"'
+  else
+    _parallel_update_provider_state "$provider_state" '.status = "complete"'
+  fi
 
   parallel_emit_event "parallel_provider_complete" "$session" "$provider_cursor" \
     "$(jq -n --arg provider "$provider" --arg status "complete" '{provider: $provider, status: $status}')" || true

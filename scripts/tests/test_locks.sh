@@ -62,6 +62,19 @@ CHILD
   echo $!
 }
 
+_lock_write_line() {
+  local file=$1
+  local value=$2
+  printf '%s\n' "$value" >> "$file"
+}
+
+_lock_hold_with_ready() {
+  local ready_file=$1
+  local sleep_seconds=$2
+  touch "$ready_file"
+  sleep "$sleep_seconds"
+}
+
 #-------------------------------------------------------------------------------
 # Lock acquisition tests
 #-------------------------------------------------------------------------------
@@ -404,6 +417,99 @@ test_detect_flock_fallback() {
 }
 
 #-------------------------------------------------------------------------------
+# File lock helper tests
+#-------------------------------------------------------------------------------
+
+test_with_file_lock_basic() {
+  local tmp
+  tmp=$(create_test_dir "file-lock-test")
+  local target="$tmp/target.txt"
+
+  local original_detect
+  original_detect=$(declare -f detect_flock)
+  detect_flock() { echo "noclobber"; }
+
+  with_file_lock "$target" _lock_write_line "$target" "alpha"
+  local result=$?
+
+  eval "$original_detect"
+
+  assert_eq "0" "$result" "with_file_lock executes command"
+  assert_file_exists "$target" "with_file_lock writes target file"
+  assert_contains "$(cat "$target")" "alpha" "with_file_lock writes content"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_with_file_lock_concurrent_writers() {
+  local tmp
+  tmp=$(create_test_dir "file-lock-test")
+  local target="$tmp/concurrent.txt"
+
+  local original_detect
+  original_detect=$(declare -f detect_flock)
+  detect_flock() { echo "noclobber"; }
+
+  local writers=5
+  local lines_per_writer=10
+
+  for idx in $(seq 1 "$writers"); do
+    (
+      for line_idx in $(seq 1 "$lines_per_writer"); do
+        with_file_lock "$target" _lock_write_line "$target" "writer-$idx-$line_idx"
+      done
+    ) &
+  done
+
+  wait
+  eval "$original_detect"
+
+  local expected=$((writers * lines_per_writer))
+  local actual
+  actual=$(wc -l < "$target" | tr -d ' ')
+
+  assert_eq "$expected" "$actual" "with_file_lock serializes concurrent writers"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_with_file_lock_timeout() {
+  local tmp
+  tmp=$(create_test_dir "file-lock-test")
+  local target="$tmp/timeout.txt"
+  local ready_file="$tmp/ready"
+
+  local original_detect
+  original_detect=$(declare -f detect_flock)
+  detect_flock() { echo "noclobber"; }
+
+  (
+    with_exclusive_file_lock "$target" _lock_hold_with_ready "$ready_file" 3
+  ) &
+  local pid=$!
+
+  if ! _wait_for_file "$ready_file"; then
+    kill "$pid" >/dev/null 2>&1
+    wait "$pid" >/dev/null 2>&1
+    eval "$original_detect"
+    assert_file_exists "$ready_file" "lock holder started"
+    cleanup_test_dir "$tmp"
+    return
+  fi
+
+  with_file_lock "$target" 1 _lock_write_line "$target" "timeout"
+  local result=$?
+
+  kill "$pid" >/dev/null 2>&1
+  wait "$pid" >/dev/null 2>&1
+  eval "$original_detect"
+
+  assert_eq "1" "$result" "with_file_lock times out when locked"
+
+  cleanup_test_dir "$tmp"
+}
+
+#-------------------------------------------------------------------------------
 # Run Tests
 #-------------------------------------------------------------------------------
 
@@ -424,5 +530,8 @@ run_test "is_locked true" test_is_locked_true
 run_test "is_locked false" test_is_locked_false
 run_test "detect_flock on Linux" test_detect_flock_linux
 run_test "detect_flock fallback" test_detect_flock_fallback
+run_test "with_file_lock basic" test_with_file_lock_basic
+run_test "with_file_lock concurrent writers" test_with_file_lock_concurrent_writers
+run_test "with_file_lock timeout" test_with_file_lock_timeout
 
 test_summary
