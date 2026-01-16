@@ -10,12 +10,34 @@
 
 ## Step 1: Start Agent Mail Server
 
+**Option A: Background process (recommended for swarms)**
 ```bash
 # One-line install (if not installed)
 curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/mcp_agent_mail/main/scripts/install.sh" | bash -s -- --yes
 
-# Start server (no auth needed for localhost)
-am
+# Start in background
+am &
+AGENT_MAIL_PID=$!
+
+# Or with nohup for persistence
+nohup am > /tmp/agent-mail.log 2>&1 &
+```
+
+**Option B: Dedicated tmux pane**
+```bash
+# Create agent-mail in its own tmux session
+tmux new-session -d -s agent-mail "am"
+
+# Later, to check logs
+tmux attach -t agent-mail
+```
+
+**Option C: Alongside NTM session**
+```bash
+# Start agent-mail, then spawn NTM
+am &
+sleep 2  # Wait for server to start
+ntm spawn myproject --cc=3 --cod=2
 ```
 
 Verify running:
@@ -23,7 +45,7 @@ Verify running:
 curl http://localhost:8765/mcp/
 ```
 
-**Note:** No authentication token needed for local development. The server runs unauthenticated on localhost by default.
+**Note:** No authentication token needed for local development. Server runs on port 8765 by default.
 
 ## Step 2: Spawn NTM Session with Agent Mail Context
 
@@ -210,9 +232,81 @@ When your part is done:
 
 </agent_prompt_template>
 
+<swarm_startup_script>
+
+## Complete Swarm Startup Script
+
+```bash
+#!/bin/bash
+# swarm-with-agent-mail.sh
+# Usage: ./swarm-with-agent-mail.sh <session-name> <task-id>
+
+SESSION="${1:-myproject}"
+TASK_ID="${2:-task-001}"
+PROJECT=$(pwd)
+
+# 1. Start agent-mail server in background
+echo "Starting agent-mail server..."
+am &
+AGENT_MAIL_PID=$!
+sleep 2
+
+# Verify agent-mail is running
+if ! curl -s http://localhost:8765/mcp/ > /dev/null; then
+    echo "ERROR: Agent-mail failed to start"
+    exit 1
+fi
+echo "Agent-mail running on http://localhost:8765 (PID: $AGENT_MAIL_PID)"
+
+# 2. Spawn NTM session with agents
+echo "Spawning NTM session: $SESSION"
+ntm spawn "$SESSION" --cc=3 --cod=2
+
+# 3. Send coordination setup to all agents
+echo "Configuring agents for coordination..."
+ntm send "$SESSION" --all "
+## Agent Mail Coordination Setup
+
+You have access to agent-mail MCP at http://localhost:8765 (no auth needed).
+
+PROJECT: $PROJECT
+TASK: $TASK_ID
+
+### On Startup
+1. register_agent(project_key='$PROJECT', program='claude-code', model='opus')
+2. fetch_inbox(project_key='$PROJECT', agent_name=YOUR_NAME)
+
+### Before Editing Files
+file_reservation_paths(
+  project_key='$PROJECT',
+  agent_name=YOUR_NAME,
+  paths=['files/to/edit/**'],
+  ttl_seconds=1800,
+  exclusive=true,
+  reason='$TASK_ID'
+)
+
+### Communication
+- Use thread_id='$TASK_ID' for all messages
+- Check inbox periodically
+- Release reservations when done
+"
+
+echo ""
+echo "=== Swarm Ready ==="
+echo "Session: $SESSION"
+echo "Agent-mail: http://localhost:8765/mail"
+echo "Dashboard: ntm dashboard $SESSION"
+echo ""
+echo "To stop: kill $AGENT_MAIL_PID && ntm kill $SESSION -f"
+```
+
+</swarm_startup_script>
+
 <success_criteria>
 
 Agent-mail coordination successful when:
+- [ ] Agent-mail server running on localhost:8765
 - [ ] All agents registered and have unique names
 - [ ] File reservations prevent edit conflicts
 - [ ] Messages flow in task threads
