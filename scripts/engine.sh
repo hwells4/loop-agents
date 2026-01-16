@@ -197,6 +197,11 @@ run_stage() {
   # Check provider is available (once at session start, not per iteration)
   check_provider "$STAGE_PROVIDER" || return 1
 
+  # Check Codex xhigh dependency if needed
+  if [[ "$STAGE_MODEL" == *:xhigh ]]; then
+    check_deps --require-codex-xhigh || return 1
+  fi
+
   # Source completion strategy
   local completion_script="$LIB_DIR/completions/${STAGE_COMPLETION}.sh"
   if [ ! -f "$completion_script" ]; then
@@ -871,6 +876,11 @@ run_pipeline() {
     [ -z "$stage_provider" ] && stage_provider="claude"
     if [ -z "$stage_model" ]; then
       stage_model=$(get_default_model "$stage_provider")
+    fi
+
+    # Check Codex xhigh dependency if needed
+    if [[ "$stage_model" == *:xhigh ]]; then
+      check_deps --require-codex-xhigh || return 1
     fi
 
     # Create stage output directory (v3 format: stage-00-name)

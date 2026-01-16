@@ -123,22 +123,6 @@ execute_codex() {
   # Validate reasoning effort
   validate_reasoning_effort "$reasoning" || return 1
 
-  # Check Codex version for xhigh support (requires 0.85.0+)
-  if [ "$reasoning" = "xhigh" ]; then
-    local codex_version
-    codex_version=$(codex --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    if [ -n "$codex_version" ]; then
-      local major minor
-      major=$(echo "$codex_version" | cut -d. -f1)
-      minor=$(echo "$codex_version" | cut -d. -f2)
-      if [ "$major" -eq 0 ] && [ "$minor" -lt 85 ]; then
-        echo "Error: Codex CLI 0.85.0+ required for xhigh reasoning (found $codex_version)" >&2
-        echo "  Update with: npm update -g @openai/codex" >&2
-        return 1
-      fi
-    fi
-  fi
-
   # Use pipefail to capture exit code through pipe
   set -o pipefail
   if [ -n "$output_file" ]; then

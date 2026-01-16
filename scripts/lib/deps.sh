@@ -136,9 +136,37 @@ check_yq_version() {
   return 0
 }
 
+check_codex_xhigh() {
+  if ! command -v codex &>/dev/null; then
+    echo "Error: Codex CLI not found (required for xhigh reasoning)" >&2
+    echo "  Install with: npm install -g @openai/codex" >&2
+    return 1
+  fi
+
+  local codex_version
+  codex_version=$(codex --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  if [ -z "$codex_version" ]; then
+    echo "Error: Unable to determine Codex CLI version" >&2
+    return 1
+  fi
+
+  local major minor
+  major=$(echo "$codex_version" | cut -d. -f1)
+  minor=$(echo "$codex_version" | cut -d. -f2)
+
+  if [ "$major" -eq 0 ] && [ "$minor" -lt 85 ]; then
+    echo "Error: Codex CLI 0.85.0+ required for xhigh reasoning (found $codex_version)" >&2
+    echo "  Update with: npm update -g @openai/codex" >&2
+    return 1
+  fi
+
+  return 0
+}
+
 check_deps() {
   local require_tmux=${PIPELINE_TMUX_REQUIRED:-""}
   local require_bd=""
+  local require_codex_xhigh=""
 
   if [ -n "${TMUX:-}" ]; then
     require_tmux="true"
@@ -148,6 +176,7 @@ check_deps() {
     case "$arg" in
       --require-tmux) require_tmux="true" ;;
       --require-bd) require_bd="true" ;;
+      --require-codex-xhigh) require_codex_xhigh="true" ;;
     esac
   done
 
@@ -171,6 +200,10 @@ check_deps() {
       print_install_instructions "bd"
       return 1
     fi
+  fi
+
+  if [ "$require_codex_xhigh" = "true" ]; then
+    check_codex_xhigh || return 1
   fi
 
   return 0
