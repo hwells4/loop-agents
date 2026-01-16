@@ -1,0 +1,14 @@
+name: docs-improve
+description: Ideate and refine documentation improvements
+
+nodes:
+  - id: ideate
+    stage: idea-wizard
+    runs: 1
+
+  - id: refine
+    stage: elegance
+    runs: 2
+    inputs:
+      from: ideate
+      select: latest

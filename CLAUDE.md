@@ -48,6 +48,7 @@ Skills are Claude Code extensions in `skills/`. Each provides specialized workfl
 |-------|------------|---------|
 | **start** | `/start` | Universal pipeline launcher with discovery |
 | **sessions** | `/sessions` | Start/manage pipelines in tmux |
+| **work** | `/work` | Quick-start Codex agent for implementation tasks |
 | **plan-refinery** | `/plan-refinery` | Iterative planning with Opus subagents |
 | **create-prd** | `/agent-pipelines:create-prd` | Generate PRDs through adaptive questioning |
 | **create-tasks** | `/agent-pipelines:create-tasks` | Break PRD into executable beads |
@@ -70,6 +71,7 @@ Commands in `commands/` provide user-facing interfaces.
 |---------|-------|-------------|
 | `/start` | `/start`, `/start ralph`, `/start refine.yaml` | Universal pipeline launcher with discovery |
 | `/sessions` | `/sessions`, `/sessions list`, `/sessions start` | Session management: start, list, monitor, kill, cleanup |
+| `/work` | `/work implement X`, `/work fix tests, 10 iterations` | Quick-start Codex agent for implementation |
 | `/ralph` | `/ralph` | Quick-start work pipelines (interactive) |
 | `/refine` | `/refine`, `/refine quick`, `/refine deep` | Run refinement pipelines |
 | `/ideate` | `/ideate`, `/ideate 3` | Generate improvement ideas |
@@ -105,6 +107,7 @@ scripts/
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
 ├── stages/                   # Stage definitions (single-stage pipeline configs)
 │   ├── ralph/                # The original Ralph loop (fixed termination)
+│   ├── codex-work/           # Codex implementation agent (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
 │   ├── refine-tasks/         # Task refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
