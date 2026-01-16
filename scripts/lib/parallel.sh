@@ -145,7 +145,7 @@ _parallel_update_provider_state() {
 
 # Run stages sequentially for a single provider within a parallel block
 # Called in a subshell, one per provider
-# Usage: run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults_json" "$node_path" "$node_run" "$provider_inputs"
+# Usage: run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults_json" "$node_path" "$node_run" "$provider_inputs" "$provider_model"
 # Returns: 0 on success, 1 on failure
 run_parallel_provider() {
   local provider=$1
@@ -156,6 +156,7 @@ run_parallel_provider() {
   local node_path=${6:-"0"}
   local node_run=${7:-1}
   local provider_inputs=${8:-"{}"}
+  local provider_model=${9:-""}
 
   local provider_dir="$block_dir/providers/$provider"
   local provider_state="$provider_dir/state.json"
@@ -176,9 +177,13 @@ run_parallel_provider() {
     "$(jq -n --arg provider "$provider" --argjson stages "$stage_names" '{provider: $provider, stages: $stages}')" || true
 
   local stage_count=$(echo "$stages_json" | jq 'length')
-  # Provider-aware model default: opus for Claude, gpt-5.2-codex for Codex
-  # Use provider's default model - pipeline-level defaults don't override per-provider
-  local default_model=$(get_default_model "$provider")
+  # Provider-aware model: use explicit provider_model if set, otherwise get default for provider
+  local default_model
+  if [ -n "$provider_model" ] && [ "$provider_model" != "null" ]; then
+    default_model="$provider_model"
+  else
+    default_model=$(get_default_model "$provider")
+  fi
 
   for stage_idx in $(seq 0 $((stage_count - 1))); do
     local stage_config=$(echo "$stages_json" | jq ".[$stage_idx]")
@@ -548,14 +553,16 @@ run_parallel_block() {
 
   # Spawn subshell for each provider
   for provider in $providers; do
-    # Extract provider-specific inputs (if using object format)
+    # Extract provider-specific inputs and model (if using object format)
     local provider_inputs="{}"
+    local provider_model=""
     if [ "$first_provider_type" != "string" ]; then
       provider_inputs=$(echo "$providers_json" | jq -c --arg p "$provider" '.[] | select(.name == $p) | .inputs // {}')
       [ -z "$provider_inputs" ] && provider_inputs="{}"
+      provider_model=$(echo "$providers_json" | jq -r --arg p "$provider" '.[] | select(.name == $p) | .model // empty')
     fi
     # Debug: log provider inputs extraction
-    [ -n "$DEBUG_PARALLEL" ] && echo "  [DEBUG] $provider provider_inputs: $provider_inputs" >&2
+    [ -n "$DEBUG_PARALLEL" ] && echo "  [DEBUG] $provider provider_inputs: $provider_inputs, model: $provider_model" >&2
 
     (
       # Export necessary vars for subshell
@@ -574,10 +581,10 @@ run_parallel_block() {
       [ "$MOCK_MODE" = true ] && [ -f "$LIB_DIR/mock.sh" ] && source "$LIB_DIR/mock.sh"
 
       # Debug: log what we're passing to run_parallel_provider
-      [ -n "$DEBUG_PARALLEL" ] && echo "  [DEBUG] Calling run_parallel_provider with inputs: $provider_inputs" >&2
+      [ -n "$DEBUG_PARALLEL" ] && echo "  [DEBUG] Calling run_parallel_provider with inputs: $provider_inputs, model: $provider_model" >&2
 
-      # Run provider stages sequentially (pass provider-specific inputs)
-      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults" "$stage_idx" "1" "$provider_inputs"
+      # Run provider stages sequentially (pass provider-specific inputs and model)
+      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults" "$stage_idx" "1" "$provider_inputs" "$provider_model"
     ) &
     local pid=$!
     all_pids="$all_pids $pid"
@@ -739,11 +746,13 @@ run_parallel_block_resume() {
 
   # Spawn subshell for each provider that needs to run
   for provider in $providers_to_run; do
-    # Extract provider-specific inputs (if using object format)
+    # Extract provider-specific inputs and model (if using object format)
     local provider_inputs="{}"
+    local provider_model=""
     if [ "$first_provider_type" != "string" ]; then
       provider_inputs=$(echo "$providers_json" | jq -c --arg p "$provider" '.[] | select(.name == $p) | .inputs // {}')
       [ -z "$provider_inputs" ] && provider_inputs="{}"
+      provider_model=$(echo "$providers_json" | jq -r --arg p "$provider" '.[] | select(.name == $p) | .model // empty')
     fi
 
     (
@@ -769,8 +778,8 @@ run_parallel_block_resume() {
         fi
       fi
 
-      # Run provider stages sequentially (pass provider-specific inputs)
-      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults" "$stage_idx" "1" "$provider_inputs"
+      # Run provider stages sequentially (pass provider-specific inputs and model)
+      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults" "$stage_idx" "1" "$provider_inputs" "$provider_model"
     ) &
     local pid=$!
     all_pids="$all_pids $pid"

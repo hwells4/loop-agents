@@ -1,0 +1,80 @@
+name: dueling-wizards
+description: Cross-evaluation debate between Claude and Codex (Jeffrey Emanuel pattern)
+
+# This pipeline demonstrates per-provider inputs in parallel blocks.
+# Each provider can receive different inputs, enabling cross-feeding patterns
+# where Claude evaluates Codex's output and vice versa.
+
+nodes:
+  # Block 1: Both generate ideas independently (same prompt, same inputs)
+  - id: ideate
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+      stages:
+        - id: generate
+          stage: idea-wizard
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 2: Cross-evaluate (each evaluates the OTHER's ideas)
+  - id: evaluate
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+          inputs:
+            from_parallel:
+              stage: generate
+              providers: [codex]  # Claude gets Codex's ideas
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+          inputs:
+            from_parallel:
+              stage: generate
+              providers: [claude]  # Codex gets Claude's ideas
+      stages:
+        - id: rate
+          stage: idea-wizard  # Reusing for demo; would be evaluate-ideas
+          context: "Score and critique these ideas from the other model"
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 3: Cross-reflect (each sees how the other rated THEIR ideas)
+  - id: reflect
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+          inputs:
+            from_parallel:
+              stage: rate
+              providers: [codex]  # Claude sees Codex's rating of Claude's ideas
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+          inputs:
+            from_parallel:
+              stage: rate
+              providers: [claude]  # Codex sees Claude's rating of Codex's ideas
+      stages:
+        - id: respond
+          stage: idea-wizard  # Reusing for demo; would be reflect-on-rating
+          context: "Respond to how the other model rated your ideas"
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 4: Synthesis (sequential, gets everything)
+  - id: synthesize
+    stage: elegance
+    inputs:
+      from_parallel:
+        stage: respond  # Gets both providers' final outputs
+    termination:
+      type: fixed
+      iterations: 1
