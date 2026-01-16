@@ -5,6 +5,7 @@
 #
 # Usage:
 #   ./run_tests.sh              # Run all tests
+#   ./run_tests.sh --ci         # Run all tests (CI alias)
 #   ./run_tests.sh unit         # Run unit tests only
 #   ./run_tests.sh integration  # Run integration tests only
 #   ./run_tests.sh contract     # Run contract tests only
@@ -140,6 +141,11 @@ run_bug_tests() {
 #-------------------------------------------------------------------------------
 
 case "$CATEGORY" in
+  --ci|ci)
+    run_unit_tests
+    run_contract_tests
+    run_integration_tests
+    ;;
   all)
     run_unit_tests
     run_contract_tests

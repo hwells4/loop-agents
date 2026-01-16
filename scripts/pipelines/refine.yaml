@@ -4,12 +4,12 @@
 name: refine
 description: Complete planning refinement - plan first, then tasks
 
-stages:
-  - name: improve-plan
+nodes:
+  - id: improve-plan
     stage: improve-plan
     runs: 5
 
-  - name: refine-tasks
+  - id: refine-tasks
     stage: refine-tasks
     runs: 5
     inputs:

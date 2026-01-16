@@ -13,14 +13,14 @@ description: TDD-focused refinement for queue provider abstraction
 inputs:
   - docs/plans/queue-provider-abstraction.md
 
-stages:
+nodes:
   # Stage 1: Refine plan with TDD focus (3 iterations)
-  - name: plan-tdd
+  - id: plan-tdd
     stage: tdd-plan-refine
     runs: 3
 
   # Stage 2: Refine tasks (3 iterations)
-  - name: tasks
+  - id: tasks
     stage: refine-tasks
     runs: 3
     inputs:
@@ -28,7 +28,7 @@ stages:
       select: latest
 
   # Stage 3: Create TDD bead pairs (test → impl)
-  - name: beads
+  - id: beads
     stage: tdd-create-beads
     runs: 2
     inputs:

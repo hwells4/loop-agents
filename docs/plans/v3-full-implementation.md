@@ -31,58 +31,10 @@ This plan defines a significant architectural evolution: replacing the current s
 * **Progress compaction deferred**
 * **Capability permission model deferred** but explicitly reserved in schema and architecture
 * **Dependency discipline enforced** (notably `yq`)
-* **Backward compatibility maintained** for existing pipelines and stages during migration period
 
 ---
 
-# Part 0: Migration Strategy
-
-## Existing Assets to Migrate
-
-The current codebase has significant implementation that must be preserved or migrated:
-
-| Current | Target | Migration Approach |
-|---------|--------|-------------------|
-| `scripts/lib/state.sh` | `events.sh` + `state.sh` (cache) | Wrap existing functions to emit events |
-| `scripts/lib/parallel.sh` | Integrated with event spine | Extend to emit events per-provider |
-| `stage.yaml` | Unchanged (compiled to plan.json) | No changes needed |
-| `pipeline.yaml` | Unchanged (compiled to plan.json) | No changes needed |
-| `status.json` | `result.json` (with fallback) | Read both, prefer result.json |
-
-## Compatibility Mode
-
-During migration, the engine runs in **compatibility mode**:
-
-1. If `events.jsonl` exists → use event-sourced execution
-2. If only `state.json` exists → use legacy execution (current behavior)
-3. New sessions always use event-sourced execution
-
-This allows gradual rollout without breaking existing sessions.
-
-## Phase Gates
-
-Each implementation phase has explicit completion criteria before advancing:
-
-| Phase | Gate Criteria |
-|-------|---------------|
-| 1 → 2 | `plan.json` compiles correctly for all built-in stages and pipelines |
-| 2 → 3 | Nested pipeline runs N times with correct event ordering |
-| 3 → 4 | Judgment termination passes test suite with legacy and new stages |
-| 4 → 5 | Resume across all hook points works without duplicate side effects |
-| 5 → Done | Library fork produces runnable stages; resolution precedence verified |
-
-## Migration Testing Strategy
-
-Before enabling event-sourced mode by default:
-
-1. **Shadow Mode Testing**: Run both legacy and event-sourced execution in parallel, compare results
-2. **Canary Sessions**: Enable events.jsonl for 10% of new sessions, monitor for divergence
-3. **Rollback Validation**: Confirm `AGENT_PIPELINES_LEGACY=1` restores full legacy behavior
-4. **Data Preservation**: Verify progress.md files remain readable by legacy engine
-
----
-
-# Part 0.5: Target Architecture
+# Part 0: Target Architecture
 
 ## Runtime artifacts
 
@@ -184,15 +136,9 @@ Minimal shape:
 
 Keep authoring YAML simple; compilation normalizes.
 
-### New recommended pipeline YAML shape
+### Pipeline YAML shape
 
-Replace `stages:` with `nodes:`. Support legacy `stages:` during migration by compiling it into `nodes:`.
-
-**Migration behavior:**
-- If pipeline has both `stages:` and `nodes:`, emit error (ambiguous)
-- If pipeline has only `stages:`, compile each stage entry as a node with `kind: stage`
-- Emit deprecation warning when compiling `stages:` blocks
-- Plan to remove `stages:` support in v2
+Use `nodes:` for pipeline definitions:
 
 ```yaml
 name: bug-hunt
@@ -380,7 +326,6 @@ Resume algorithm:
 | `state.json` missing | Rebuild from events (slow but correct) |
 | Lock held by dead process | Stale lock detection via PID check |
 | Iteration started but no complete event | Retry that iteration |
-| `events.jsonl` missing but `state.json` exists | Legacy session - use compatibility mode |
 | Disk full during event append | Fail gracefully, emit error to stderr, release lock |
 | Concurrent write attempts to `events.jsonl` | Prevented by session lock; second writer fails fast |
 | Event timestamp out of order | Log warning but accept (clock skew possible) |
@@ -473,7 +418,7 @@ Workers produce outputs; the engine decides whether to continue.
 
 ## Worker contract
 
-Workers write a `result.json` (new canonical) and may also write legacy `status.json` for backward compatibility.
+Workers write a `result.json` file.
 
 ### `result.json` minimal schema
 
@@ -495,15 +440,6 @@ Workers write a `result.json` (new canonical) and may also write legacy `status.
   }
 }
 ```
-
-Legacy support:
-
-* if `status.json` exists, read it as additional signals, but do not treat `"decision"` as authoritative
-* if only `status.json` exists (no `result.json`), extract equivalent fields:
-  - `status.summary` → `result.summary`
-  - `status.work` → `result.work`
-  - `status.decision == "stop"` + `status.reason` → `result.signals.plateau_suspected = true`
-* engine writes a `result.json` wrapper after reading legacy `status.json` for consistency
 
 ## Deciders
 
@@ -664,7 +600,7 @@ Replace env-var explosion with a single file path:
 }
 ```
 
-**Environment variables still available (for backward compatibility):**
+**Environment variables also available:**
 
 | Variable | Value |
 |----------|-------|
@@ -973,7 +909,6 @@ test_compile_multi_stage_pipeline_resolves_all_refs
 test_compile_fails_on_missing_stage_ref
 test_compile_fails_on_circular_pipeline_refs
 test_compile_is_idempotent  # Same inputs → identical outputs
-test_compile_legacy_stages_block_converted_to_nodes
 test_compile_merges_stage_defaults_with_node_overrides
 test_compile_includes_dependency_versions
 ```
@@ -1000,7 +935,6 @@ test_state_cursor_advances_correctly_across_nodes
 Deliverables
 
 * `nodes:` pipeline authoring supported
-* legacy `stages:` compiled into `nodes:`
 * nested `pipeline:` nodes supported with `runs: N`
 * unified artifact directory layout keyed by node_path/run/iteration
 
@@ -1020,9 +954,9 @@ Tests
 Deliverables
 
 * deciders: fixed and queue fully engine-owned
-* judgment uses judge invocation and “two consecutive stops” rule
+* judgment uses judge invocation and "two consecutive stops" rule
 * worker decision ignored as control-plane
-* minimal `result.json` support with backward-compatible reading
+* `result.json` parsing and validation
 
 Files
 
@@ -1035,7 +969,6 @@ Tests
 * fixed terminates exactly at max
 * queue terminates when command empty
 * judgment terminates only after two consecutive judge stops
-* legacy stages still run without breaking
 
 ## Phase 4: Hooks rebuilt on events + jq conditions + gate
 
@@ -1100,7 +1033,6 @@ Tests
 
 * [ ] fixed and queue termination do not rely on worker decisions
 * [ ] judgment termination uses judge results and obeys consecutive-stop rule
-* [ ] legacy stages writing status.json still run without breaking
 
 ## Hooks
 
@@ -1247,11 +1179,3 @@ test:
   - run: ./scripts/run.sh --no-lock test fixtures
 ```
 
-## Rollback Procedure
-
-If the new event-sourced engine has critical bugs in production:
-
-1. **Immediate**: Set `AGENT_PIPELINES_LEGACY=1` to force legacy mode
-2. **Session recovery**: Legacy engine can still read progress.md files
-3. **Data preservation**: events.jsonl is append-only, no data loss
-4. **Fix cycle**: Reproduce in test, fix, add regression test, redeploy

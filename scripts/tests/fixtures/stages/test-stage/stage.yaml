@@ -1,0 +1,5 @@
+name: test-stage
+description: Fixture stage for v3 engine tests
+termination:
+  type: fixed
+prompt: prompt.md

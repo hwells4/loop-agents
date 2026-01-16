@@ -1,0 +1,1 @@
+Test stage prompt fixture.

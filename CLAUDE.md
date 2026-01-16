@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Start
+
+| I want to... | Command |
+|--------------|---------|
+| Start any pipeline | `/start` |
+| Implement a feature with Codex | `/work implement user auth` |
+| Refine a plan | `/refine` |
+| Generate improvement ideas | `/ideate` |
+| Create a new pipeline | `/pipeline` |
+| Check running sessions | `/sessions list` |
+
+## Philosophy
+
+This codebase will outlive you. Every shortcut becomes someone else's burden. Establish will be copied and corners you cut will be cut again. Please fight entropy and leave the codebase better than you found it.
+
 ## What This Is
 
 Agent Pipelines is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for Claude Code. It runs autonomous, multi-iteration agent workflows in tmux sessions. Each iteration spawns a fresh Claude instance that reads accumulated progress to maintain context without degradation.
@@ -20,6 +35,9 @@ Agent Pipelines is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for 
 
 # Run a multi-stage pipeline
 ./scripts/run.sh pipeline refine.yaml my-session
+
+# Run a pipeline multiple times (3 full runs)
+./scripts/run.sh pipeline refine.yaml my-session 3
 
 # Force start (override existing session lock)
 ./scripts/run.sh ralph auth 25 --force
@@ -44,6 +62,7 @@ Skills are Claude Code extensions in `skills/`. Each provides specialized workfl
 |-------|------------|---------|
 | **start** | `/start` | Universal pipeline launcher with discovery |
 | **sessions** | `/sessions` | Start/manage pipelines in tmux |
+| **work** | `/work` | Quick-start Codex agent for implementation tasks |
 | **plan-refinery** | `/plan-refinery` | Iterative planning with Opus subagents |
 | **create-prd** | `/agent-pipelines:create-prd` | Generate PRDs through adaptive questioning |
 | **create-tasks** | `/agent-pipelines:create-tasks` | Break PRD into executable beads |
@@ -66,6 +85,7 @@ Commands in `commands/` provide user-facing interfaces.
 |---------|-------|-------------|
 | `/start` | `/start`, `/start ralph`, `/start refine.yaml` | Universal pipeline launcher with discovery |
 | `/sessions` | `/sessions`, `/sessions list`, `/sessions start` | Session management: start, list, monitor, kill, cleanup |
+| `/work` | `/work implement X`, `/work fix tests, 10 iterations` | Quick-start Codex agent for implementation |
 | `/ralph` | `/ralph` | Quick-start work pipelines (interactive) |
 | `/refine` | `/refine`, `/refine quick`, `/refine deep` | Run refinement pipelines |
 | `/ideate` | `/ideate`, `/ideate 3` | Generate improvement ideas |
@@ -101,6 +121,7 @@ scripts/
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
 ├── stages/                   # Stage definitions (single-stage pipeline configs)
 │   ├── ralph/                # The original Ralph loop (fixed termination)
+│   ├── codex-work/           # Codex implementation agent (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
 │   ├── refine-tasks/         # Task refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
@@ -108,7 +129,8 @@ scripts/
 │   ├── bug-triage/           # Bug triage and elegant fix design (judgment termination)
 │   ├── idea-wizard/          # Ideation (fixed termination)
 │   ├── research-plan/        # Research-driven planning (judgment termination)
-│   └── test-scanner/         # Test coverage gap discovery (judgment termination)
+│   ├── test-scanner/         # Test coverage gap discovery (judgment termination)
+│   └── fresh-eyes/           # Critical plan review with Codex xhigh (judgment termination)
 └── pipelines/                # Multi-stage pipeline configs
     ├── refine.yaml           # 5+5 plan → task iterations
     ├── ideate.yaml           # Brainstorm improvements
@@ -182,7 +204,7 @@ Stages can use different AI agent providers. The default is Claude Code.
 ```yaml
 # In stage.yaml
 provider: codex  # or claude (default)
-model: gpt-5.2-codex  # provider-specific model
+model: gpt-5.2-codex:xhigh  # Codex: model:reasoning (xhigh, high, medium, low, minimal)
 ```
 
 ### State vs Progress Files
@@ -210,6 +232,8 @@ model: gpt-5.2-codex  # provider-specific model
 }
 ```
 
+When a stale lock is cleaned up, the engine releases any `in_progress` beads labeled `pipeline/{session}` back to `open` so crashed sessions do not orphan claims.
+
 ### Termination Strategies
 
 | Type | How It Works | Used By |
@@ -231,19 +255,19 @@ model: gpt-5.2-codex  # provider-specific model
 
 ### Multi-Stage Pipelines
 
-Chain stages together. Use `inputs:` to pass outputs between stages:
+Use `nodes:` for pipeline definitions (`stages:` is deprecated but still supported). Chain stages together with `inputs:`:
 ```yaml
 name: full-refine
 description: Refine plan then beads
-stages:
-  - name: plan
+nodes:
+  - id: plan
     stage: improve-plan
     runs: 5
-  - name: beads
+  - id: beads
     stage: refine-tasks
     runs: 5
     inputs:
-      from: plan        # Reference previous stage by name
+      from: plan        # Reference previous node by id
       select: latest    # "latest" (default) or "all"
 ```
 
@@ -262,30 +286,30 @@ Run multiple providers (Claude, Codex, etc.) concurrently with isolated contexts
 ```yaml
 name: parallel-refine
 description: Compare Claude and Codex refinements
-stages:
-  - name: setup
+nodes:
+  - id: setup
     stage: improve-plan
     termination:
       type: fixed
       iterations: 1
 
-  - name: dual-refine
+  - id: dual-refine
     parallel:
       providers: [claude, codex]
       stages:
-        - name: plan
+        - id: plan
           stage: improve-plan
           termination:
             type: fixed
             iterations: 1
-        - name: iterate
+        - id: iterate
           stage: improve-plan
           termination:
             type: judgment
             consensus: 2
             max: 5
 
-  - name: synthesize
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: iterate  # Read outputs from both providers
@@ -351,15 +375,6 @@ On resume, completed providers are skipped; only failed/incomplete providers res
 | `${CONTEXT}` | Injected context text (from CLI `--context` or env `CLAUDE_PIPELINE_CONTEXT`) |
 | `${OUTPUT}` | Path to write output (multi-stage pipelines, set via `output_path` in stage.yaml) |
 
-### Legacy Variables (Deprecated, still work)
-
-| Variable | Description |
-|----------|-------------|
-| `${SESSION}` | Same as `${SESSION_NAME}` |
-| `${INDEX}` | 0-based iteration index |
-| `${PROGRESS_FILE}` | Same as `${PROGRESS}` |
-| `${OUTPUT_PATH}` | Same as `${OUTPUT}` (from `output_path` in stage.yaml) |
-
 ## Input System
 
 Agents receive inputs through `context.json`, which contains three input sources:
@@ -374,29 +389,29 @@ Agents receive inputs through `context.json`, which contains three input sources
 **2. Previous Stage Outputs** (`inputs.from_stage`): Outputs from earlier stages in multi-stage pipelines
 ```yaml
 # In pipeline.yaml
-stages:
-  - name: plan
+nodes:
+  - id: plan
     stage: improve-plan
     runs: 5
-  - name: implement
+  - id: implement
     stage: ralph
     runs: 25
     inputs:
-      from: plan        # References "plan" stage by name
+      from: plan        # References "plan" node by id
       select: latest    # "latest" (default) or "history" (all iterations)
 ```
 
 **3. Parallel Block Outputs** (`inputs.from_parallel`): Outputs from multiple providers running in parallel
 ```yaml
 # In pipeline.yaml
-stages:
-  - name: dual-refine
+nodes:
+  - id: dual-refine
     parallel:
       providers: [claude, codex]
       stages:
-        - name: iterate
+        - id: iterate
           stage: improve-plan
-  - name: synthesize
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: iterate  # Gets outputs from both providers
@@ -547,7 +562,7 @@ delay: 3                # seconds between iterations
 
 # Optional fields:
 provider: claude                    # claude or codex (default: claude)
-model: opus                         # model name (provider-specific)
+model: opus                         # model name (Codex: model:reasoning like gpt-5.2-codex:xhigh)
 prompt: prompts/custom.md           # custom prompt path (default: prompt.md)
 output_path: docs/output-${SESSION}.md  # direct output to specific file
 ```

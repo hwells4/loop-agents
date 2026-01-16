@@ -39,7 +39,58 @@ validate_session_name() {
 }
 
 # Known template variables (including v3 variables: CTX, STATUS, CONTEXT)
-KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS CONTEXT"
+KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS RESULT CONTEXT"
+
+yaml_line_for_path() {
+  local file=$1
+  local path=$2
+
+  if ! command -v yq >/dev/null 2>&1; then
+    echo ""
+    return 0
+  fi
+
+  local line
+  line=$(yq e "${path} | line" "$file" 2>/dev/null || true)
+  if [ -z "$line" ] || [ "$line" = "0" ] || [ "$line" = "null" ]; then
+    echo ""
+  else
+    echo "$line"
+  fi
+}
+
+format_line_suffix() {
+  local line=$1
+  if [ -n "$line" ]; then
+    echo " (line $line)"
+  else
+    echo ""
+  fi
+}
+
+resolve_pipeline_path() {
+  local pipeline_ref=$1
+  local pipelines_base="${PIPELINES_DIR:-${VALIDATE_SCRIPT_DIR}/../pipelines}"
+
+  if [[ "$pipeline_ref" == /* ]] && [ -f "$pipeline_ref" ]; then
+    echo "$pipeline_ref"
+    return 0
+  fi
+  if [ -f "$pipeline_ref" ]; then
+    echo "$pipeline_ref"
+    return 0
+  fi
+  if [ -f "$pipelines_base/$pipeline_ref" ]; then
+    echo "$pipelines_base/$pipeline_ref"
+    return 0
+  fi
+  if [ -f "$pipelines_base/$pipeline_ref.yaml" ]; then
+    echo "$pipelines_base/$pipeline_ref.yaml"
+    return 0
+  fi
+
+  return 1
+}
 
 # Validate a loop configuration
 # Usage: validate_stage "stage-name" [--quiet]
@@ -155,7 +206,65 @@ validate_loop() {
     fi
   fi
 
-  # L011: Check template variables in prompt (warning)
+  # L011: Validate provider
+  local provider=$(json_get "$config" ".provider" "claude")
+  case "$provider" in
+    claude|claude-code|anthropic|codex|openai) ;;
+    *)
+      errors+=("Unknown provider: $provider (valid: claude, codex)")
+      ;;
+  esac
+
+  # L012: Validate model for provider
+  local model=$(json_get "$config" ".model" "")
+  if [ -n "$model" ]; then
+    local base_model="${model%%:*}"
+    local reasoning=""
+    [[ "$model" == *:* ]] && reasoning="${model#*:}"
+
+    case "$provider" in
+      claude|claude-code|anthropic)
+        case "$base_model" in
+          opus|claude-opus|opus-4|opus-4.5|sonnet|claude-sonnet|sonnet-4|haiku|claude-haiku) ;;
+          *)
+            errors+=("Unknown Claude model: $base_model")
+            ;;
+        esac
+        ;;
+      codex|openai)
+        case "$base_model" in
+          gpt-5.2-codex|gpt-5.1-codex-max|gpt-5.1-codex-mini|gpt-5.1-codex|gpt-5-codex|gpt-5-codex-mini) ;;
+          *)
+            errors+=("Unknown Codex model: $base_model")
+            ;;
+        esac
+        # L013: Validate reasoning effort
+        if [ -n "$reasoning" ]; then
+          case "$reasoning" in
+            minimal|low|medium|high|xhigh) ;;
+            *)
+              errors+=("Unknown reasoning effort: $reasoning (valid: minimal, low, medium, high, xhigh)")
+              ;;
+          esac
+          # L014: Check Codex version for xhigh
+          if [ "$reasoning" = "xhigh" ] && command -v codex &>/dev/null; then
+            local codex_version
+            codex_version=$(codex --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            if [ -n "$codex_version" ]; then
+              local major minor
+              major=$(echo "$codex_version" | cut -d. -f1)
+              minor=$(echo "$codex_version" | cut -d. -f2)
+              if [ "$major" -eq 0 ] && [ "$minor" -lt 85 ]; then
+                errors+=("Codex CLI 0.85.0+ required for xhigh (found $codex_version). Run: npm update -g @openai/codex")
+              fi
+            fi
+          fi
+        fi
+        ;;
+    esac
+  fi
+
+  # L015: Check template variables in prompt (warning)
   if [ -f "$dir/$prompt_file" ]; then
     local prompt_content=$(cat "$dir/$prompt_file")
     # Extract ${VAR} patterns
@@ -226,40 +335,46 @@ validate_pipeline() {
 }
 
 # Internal: Validate a parallel block
-# Usage: _validate_parallel_block "$stage_json" "$stage_name" "$stage_idx"
+# Usage: _validate_parallel_block "$node_json" "$node_name" "$node_idx" "$file" "$nodes_key"
 # Outputs lines prefixed with ERROR:, WARNING:, or STAGE: for the caller to parse
 # Returns 0 if valid, 1 if errors found
 _validate_parallel_block() {
   local stage_json=$1
   local stage_name=$2
   local stage_idx=$3
+  local file=$4
+  local nodes_key=$5
   local had_error=0
 
   local parallel=$(echo "$stage_json" | jq '.parallel')
+  local block_line
+  block_line=$(yaml_line_for_path "$file" ".${nodes_key}[$stage_idx].parallel")
+  local block_suffix
+  block_suffix=$(format_line_suffix "$block_line")
 
   # P012: parallel.providers required and non-empty
   local providers=$(echo "$parallel" | jq -r '.providers // empty')
   if [ -z "$providers" ] || [ "$providers" = "null" ]; then
-    echo "ERROR:Parallel block '$stage_name': missing 'providers' array"
+    echo "ERROR:Parallel block '$stage_name': missing 'providers' array${block_suffix}"
     return 1
   fi
 
   local providers_len=$(echo "$parallel" | jq '.providers | length')
   if [ "$providers_len" -eq 0 ]; then
-    echo "ERROR:Parallel block '$stage_name': 'providers' array cannot be empty"
+    echo "ERROR:Parallel block '$stage_name': 'providers' array cannot be empty${block_suffix}"
     return 1
   fi
 
   # P013: parallel.stages required and non-empty
   local block_stages=$(echo "$parallel" | jq -r '.stages // empty')
   if [ -z "$block_stages" ] || [ "$block_stages" = "null" ]; then
-    echo "ERROR:Parallel block '$stage_name': missing 'stages' array"
+    echo "ERROR:Parallel block '$stage_name': missing 'stages' array${block_suffix}"
     return 1
   fi
 
   local block_stages_len=$(echo "$parallel" | jq '.stages | length')
   if [ "$block_stages_len" -eq 0 ]; then
-    echo "ERROR:Parallel block '$stage_name': 'stages' array cannot be empty"
+    echo "ERROR:Parallel block '$stage_name': 'stages' array cannot be empty${block_suffix}"
     return 1
   fi
 
@@ -269,18 +384,22 @@ _validate_parallel_block() {
   # Validate each stage in the parallel block
   for ((j=0; j<block_stages_len; j++)); do
     local block_stage=$(echo "$parallel" | jq -r ".stages[$j]")
-    local block_stage_name=$(echo "$block_stage" | jq -r '.name // empty')
+    local block_stage_name=$(echo "$block_stage" | jq -r '.id // .name // empty')
+    local stage_line
+    stage_line=$(yaml_line_for_path "$file" ".${nodes_key}[$stage_idx].parallel.stages[$j]")
+    local stage_suffix
+    stage_suffix=$(format_line_suffix "$stage_line")
 
     # Each block stage needs a name
     if [ -z "$block_stage_name" ]; then
-      echo "ERROR:Parallel block '$stage_name', stage $j: missing 'name' field"
+      echo "ERROR:Parallel block '$stage_name', stage $j: missing 'id' field${stage_suffix}"
       had_error=1
       continue
     fi
 
     # P016: Stage names unique within block (use string matching for bash 3.x compat)
     if [[ " $block_stage_names " == *" $block_stage_name "* ]]; then
-      echo "ERROR:Parallel block '$stage_name': duplicate stage name '$block_stage_name'"
+      echo "ERROR:Parallel block '$stage_name': duplicate stage name '$block_stage_name'${stage_suffix}"
       had_error=1
     fi
     block_stage_names="$block_stage_names $block_stage_name"
@@ -289,24 +408,29 @@ _validate_parallel_block() {
     # P014: No nested parallel blocks
     local nested_parallel=$(echo "$block_stage" | jq -e '.parallel' 2>/dev/null)
     if [ "$nested_parallel" != "null" ] && [ -n "$nested_parallel" ]; then
-      echo "ERROR:Parallel block '$stage_name': nested parallel blocks not allowed (found in '$block_stage_name')"
+      echo "ERROR:Parallel block '$stage_name': nested parallel blocks not allowed (found in '$block_stage_name')${stage_suffix}"
       had_error=1
     fi
 
     # P015: No provider override within block stages
     local stage_provider=$(echo "$block_stage" | jq -r '.provider // empty')
     if [ -n "$stage_provider" ] && [ "$stage_provider" != "null" ]; then
-      echo "ERROR:Parallel block '$stage_name': stage '$block_stage_name' cannot override provider (block controls provider)"
+      echo "ERROR:Parallel block '$stage_name': stage '$block_stage_name' cannot override provider (block controls provider)${stage_suffix}"
       had_error=1
     fi
 
     # Validate stage reference exists
     local stage_ref=$(echo "$block_stage" | jq -r '.stage // empty')
+    local stage_prompt=$(echo "$block_stage" | jq -r '.prompt // empty')
+    if [ -z "$stage_ref" ] && [ -z "$stage_prompt" ]; then
+      echo "ERROR:Parallel block '$stage_name': stage '$block_stage_name' missing 'stage' or 'prompt'${stage_suffix}"
+      had_error=1
+    fi
     if [ -n "$stage_ref" ]; then
       local stages_base="${STAGES_DIR:-${VALIDATE_SCRIPT_DIR}/../stages}"
       local stage_dir="$stages_base/$stage_ref"
       if [ ! -d "$stage_dir" ]; then
-        echo "ERROR:Parallel block '$stage_name', stage '$block_stage_name': references unknown stage '$stage_ref'"
+        echo "ERROR:Parallel block '$stage_name', stage '$block_stage_name': references unknown stage '$stage_ref'${stage_suffix}"
         had_error=1
       fi
     fi
@@ -339,42 +463,77 @@ _validate_pipeline_impl() {
     errors+=("Missing 'name' field")
   fi
 
-  # P004: stages array present
+  # P004: nodes array present (stages deprecated)
+  local nodes_len=$(json_array_len "$config" ".nodes")
   local stages_len=$(json_array_len "$config" ".stages")
-  if [ "$stages_len" -eq 0 ]; then
-    errors+=("Missing or empty 'stages' array")
+  local nodes_key=""
+  local nodes_len_used=0
+  local nodes_line
+  nodes_line=$(yaml_line_for_path "$file" ".nodes")
+
+  if [ "$nodes_len" -gt 0 ]; then
+    nodes_key="nodes"
+    nodes_len_used=$nodes_len
+    if [ "$stages_len" -gt 0 ]; then
+      local stages_line
+      stages_line=$(yaml_line_for_path "$file" ".stages")
+      warnings+=("Both 'nodes' and 'stages' present; ignoring 'stages'$(format_line_suffix "$stages_line")")
+    fi
+  elif [ "$stages_len" -gt 0 ]; then
+    nodes_key="stages"
+    nodes_len_used=$stages_len
+    local stages_line
+    stages_line=$(yaml_line_for_path "$file" ".stages")
+    local stages_suffix
+    stages_suffix=$(format_line_suffix "$stages_line")
+    warnings+=("Deprecated 'stages' key used; rename to 'nodes'${stages_suffix}")
+    if [ -n "$stages_suffix" ]; then
+      echo "Warning: Pipeline '$name' uses deprecated 'stages' key${stages_suffix}." >&2
+    else
+      echo "Warning: Pipeline '$name' uses deprecated 'stages' key." >&2
+    fi
+  else
+    if [ -n "$nodes_line" ]; then
+      errors+=("Empty 'nodes' array$(format_line_suffix "$nodes_line")")
+    else
+      errors+=("Missing 'nodes' array (line 1)")
+    fi
     [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
     return 1
   fi
 
-  # Collect stage names for reference validation
-  local stage_names=()
+  # Collect node ids for reference validation
+  local node_ids=()
   # Collect parallel block stage names for from_parallel validation
   local parallel_stage_names=()
 
-  # Validate each stage
-  for ((i=0; i<stages_len; i++)); do
-    local stage=$(echo "$config" | jq -r ".stages[$i]")
-    local stage_name=$(echo "$stage" | jq -r ".name // empty")
+  # Validate each node
+  for ((i=0; i<nodes_len_used; i++)); do
+    local node=$(echo "$config" | jq -r ".${nodes_key}[$i]")
+    local node_id=$(echo "$node" | jq -r ".id // .name // empty")
+    local node_line
+    node_line=$(yaml_line_for_path "$file" ".${nodes_key}[$i]")
+    local node_suffix
+    node_suffix=$(format_line_suffix "$node_line")
 
-    # P005: Each stage has name
-    if [ -z "$stage_name" ]; then
-      errors+=("Stage $i: missing 'name' field")
+    # P005: Each node has id
+    if [ -z "$node_id" ]; then
+      errors+=("Node $i: missing 'id' field${node_suffix}")
       continue
     fi
 
-    # P006: Stage names are unique
-    if [[ " ${stage_names[*]} " =~ " $stage_name " ]]; then
-      errors+=("Duplicate stage name: $stage_name")
+    # P006: Node ids are unique
+    if [[ " ${node_ids[*]} " =~ " $node_id " ]]; then
+      errors+=("Duplicate node id: $node_id${node_suffix}")
     fi
-    stage_names+=("$stage_name")
+    node_ids+=("$node_id")
 
     # Check if this is a parallel block
-    local is_parallel=$(echo "$stage" | jq -e '.parallel' 2>/dev/null)
+    local is_parallel=$(echo "$node" | jq -e '.parallel' 2>/dev/null)
     if [ "$is_parallel" != "null" ] && [ -n "$is_parallel" ]; then
       # Validate parallel block and parse output
       local block_output
-      block_output=$(_validate_parallel_block "$stage" "$stage_name" "$i")
+      block_output=$(_validate_parallel_block "$node" "$node_id" "$i" "$file" "$nodes_key")
       local block_result=$?
 
       # Parse output lines
@@ -395,13 +554,38 @@ _validate_pipeline_impl() {
       continue
     fi
 
-    # P007: Each stage has stage, loop (legacy), or prompt
-    local stage_ref=$(echo "$stage" | jq -r ".stage // empty")
+    # P007: Each node has pipeline or stage/prompt
+    local pipeline_ref=$(echo "$node" | jq -r ".pipeline // empty")
+    local stage_ref=$(echo "$node" | jq -r ".stage // empty")
     # Support legacy .loop keyword (Bug fix: parallel to loop-agents-sam)
-    [ -z "$stage_ref" ] && stage_ref=$(echo "$stage" | jq -r ".loop // empty")
-    local stage_prompt=$(echo "$stage" | jq -r ".prompt // empty")
+    [ -z "$stage_ref" ] && stage_ref=$(echo "$node" | jq -r ".loop // empty")
+    local stage_prompt=$(echo "$node" | jq -r ".prompt // empty")
+
+    if [ -n "$pipeline_ref" ] && { [ -n "$stage_ref" ] || [ -n "$stage_prompt" ]; }; then
+      errors+=("Node '$node_id': cannot mix 'pipeline' with 'stage' or 'prompt'${node_suffix}")
+      continue
+    fi
+
+    if [ -n "$pipeline_ref" ]; then
+      if ! resolve_pipeline_path "$pipeline_ref" >/dev/null; then
+        errors+=("Node '$node_id': references unknown pipeline '$pipeline_ref'${node_suffix}")
+      fi
+      local runs_type
+      runs_type=$(echo "$node" | jq -r '.runs | type' 2>/dev/null || echo "null")
+      if [ "$runs_type" = "string" ]; then
+        local runs_value
+        runs_value=$(echo "$node" | jq -r '.runs')
+        if [[ ! "$runs_value" =~ ^[0-9]+$ ]]; then
+          errors+=("Node '$node_id': runs must be numeric${node_suffix}")
+        fi
+      elif [ "$runs_type" != "number" ] && [ "$runs_type" != "null" ]; then
+        errors+=("Node '$node_id': runs must be numeric${node_suffix}")
+      fi
+      continue
+    fi
+
     if [ -z "$stage_ref" ] && [ -z "$stage_prompt" ]; then
-      errors+=("Stage '$stage_name': needs 'stage' or 'prompt' field")
+      errors+=("Node '$node_id': needs 'stage' or 'prompt' field${node_suffix}")
     fi
 
     # P008: Referenced stages exist
@@ -410,42 +594,47 @@ _validate_pipeline_impl() {
       local stages_base="${STAGES_DIR:-${VALIDATE_SCRIPT_DIR}/../stages}"
       local stage_dir="$stages_base/$stage_ref"
       if [ ! -d "$stage_dir" ]; then
-        errors+=("Stage '$stage_name': references unknown stage '$stage_ref'")
+        errors+=("Node '$node_id': references unknown stage '$stage_ref'${node_suffix}")
       fi
     fi
 
-    # P011: Each stage should have runs field (warning)
-    local stage_runs=$(echo "$stage" | jq -r ".runs // empty")
-    if [ -z "$stage_runs" ]; then
-      warnings+=("Stage '$stage_name': missing 'runs' field (will use default)")
+    # P011: Each stage node should have runs field (warning)
+    local runs_type
+    runs_type=$(echo "$node" | jq -r ".runs | type" 2>/dev/null || echo "null")
+    if [ "$runs_type" = "null" ]; then
+      warnings+=("Node '$node_id': missing 'runs' field (will use default)${node_suffix}")
     fi
   done
 
-  # P009: Check INPUTS references (need all stages collected first)
-  for ((i=0; i<stages_len; i++)); do
-    local stage=$(echo "$config" | jq -r ".stages[$i]")
-    local stage_name=$(echo "$stage" | jq -r ".name // empty")
-    local stage_prompt=$(echo "$stage" | jq -r ".prompt // empty")
+  # P009: Check INPUTS references (need all nodes collected first)
+  for ((i=0; i<nodes_len_used; i++)); do
+    local node=$(echo "$config" | jq -r ".${nodes_key}[$i]")
+    local node_id=$(echo "$node" | jq -r ".id // .name // empty")
+    local node_prompt=$(echo "$node" | jq -r ".prompt // empty")
+    local node_line
+    node_line=$(yaml_line_for_path "$file" ".${nodes_key}[$i]")
+    local node_suffix
+    node_suffix=$(format_line_suffix "$node_line")
 
-    # Check for ${INPUTS.stage-name} references
-    if [ -n "$stage_prompt" ]; then
-      local refs=$(echo "$stage_prompt" | grep -oE '\$\{INPUTS\.[a-zA-Z0-9_-]+\}' | sed 's/\${INPUTS\.//g; s/}//g')
+    # Check for ${INPUTS.node-id} references
+    if [ -n "$node_prompt" ]; then
+      local refs=$(echo "$node_prompt" | grep -oE '\$\{INPUTS\.[a-zA-Z0-9_-]+\}' | sed 's/\${INPUTS\.//g; s/}//g')
       for ref in $refs; do
-        if [[ ! " ${stage_names[*]} " =~ " $ref " ]]; then
-          errors+=("Stage '$stage_name': references unknown stage '\${INPUTS.$ref}'")
+        if [[ ! " ${node_ids[*]} " =~ " $ref " ]]; then
+          errors+=("Node '$node_id': references unknown node '\${INPUTS.$ref}'${node_suffix}")
         fi
       done
     fi
 
-    # P010: First stage shouldn't use INPUTS (warning)
-    if [ $i -eq 0 ] && [ -n "$stage_prompt" ]; then
-      if [[ "$stage_prompt" == *'${INPUTS'* ]]; then
-        warnings+=("Stage '$stage_name': first stage uses \${INPUTS} which will be empty")
+    # P010: First node shouldn't use INPUTS (warning)
+    if [ $i -eq 0 ] && [ -n "$node_prompt" ]; then
+      if [[ "$node_prompt" == *'${INPUTS'* ]]; then
+        warnings+=("Node '$node_id': first node uses \${INPUTS} which will be empty${node_suffix}")
       fi
     fi
 
     # P017: Check from_parallel references
-    local from_parallel=$(echo "$stage" | jq -r '.inputs.from_parallel // empty')
+    local from_parallel=$(echo "$node" | jq -r '.inputs.from_parallel // empty')
     if [ -n "$from_parallel" ] && [ "$from_parallel" != "null" ]; then
       # Handle both shorthand (string) and full object form
       local ref_stage=""
@@ -459,7 +648,7 @@ _validate_pipeline_impl() {
       # Check reference exists (use string matching for bash 3.x compatibility)
       local parallel_names_str=" ${parallel_stage_names[*]} "
       if [ -n "$ref_stage" ] && [[ "$parallel_names_str" != *" $ref_stage "* ]]; then
-        errors+=("Stage '$stage_name': from_parallel references unknown stage '$ref_stage'")
+        errors+=("Node '$node_id': from_parallel references unknown stage '$ref_stage'${node_suffix}")
       fi
     fi
   done
@@ -548,7 +737,12 @@ lint_all() {
       validate_loop "$target_name"
       return $?
     elif [ "$target_type" = "pipeline" ]; then
-      validate_pipeline "$target_name"
+      # If target_name contains a path separator or ends with .yaml, treat as file path
+      if [[ "$target_name" == */* ]] || [[ "$target_name" == *.yaml ]]; then
+        validate_pipeline_file "$target_name"
+      else
+        validate_pipeline "$target_name"
+      fi
       return $?
     fi
   fi
@@ -648,7 +842,7 @@ dry_run_loop() {
   echo "| Progress file | .claude/pipeline-runs/${session}/stage-00-${name}/progress.md |"
   echo "| Iteration dir | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/ |"
   echo "| Context file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/context.json |"
-  echo "| Status file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/status.json |"
+  echo "| Result file | .claude/pipeline-runs/${session}/stage-00-${name}/iterations/001/result.json |"
   echo "| Lock file | .claude/locks/${session}.lock |"
   echo ""
 
@@ -679,11 +873,11 @@ EOF
     queue)
       echo "The loop will stop when:"
       echo "- \`bd ready --label=pipeline/${session}\` returns 0 results"
-      echo "- Agent writes \`decision: continue\` (no error)"
+      echo "- Engine-owned decider continues while queue has items"
       ;;
     judgment)
       echo "The loop will stop when:"
-      echo "- $consensus consecutive agents write \`decision: stop\` in status.json"
+      echo "- $consensus consecutive iterations set \`signals.plateau_suspected: true\` in result.json"
       echo "- Minimum iterations before checking: $min_iter"
       ;;
     fixed)
@@ -717,10 +911,31 @@ dry_run_pipeline() {
   fi
   echo ""
 
-  # Load config
+  # Compile the pipeline to get merged config with overrides applied
+  source "$VALIDATE_SCRIPT_DIR/compile.sh"
+  local tmp_plan=$(mktemp)
+  trap "rm -f '$tmp_plan'" EXIT
+  if ! compile_pipeline_file "$file" "$tmp_plan" "$session" 2>/dev/null; then
+    echo "**Warning: Could not compile pipeline, falling back to raw config**"
+    local plan_json="{}"
+  else
+    local plan_json=$(cat "$tmp_plan")
+  fi
+
+  # Load raw config for basic info
   local config=$(yaml_to_json "$file")
   local description=$(json_get "$config" ".description" "")
-  local stages_len=$(json_array_len "$config" ".stages")
+  local nodes_key="nodes"
+  local nodes_len=$(json_array_len "$config" ".nodes")
+  if [ "$nodes_len" -eq 0 ]; then
+    nodes_key="stages"
+    nodes_len=$(json_array_len "$config" ".stages")
+  fi
+  local plan_nodes_len
+  plan_nodes_len=$(echo "$plan_json" | jq -r '.nodes | length' 2>/dev/null || echo "0")
+  if [[ "$plan_nodes_len" =~ ^[0-9]+$ ]] && [ "$plan_nodes_len" -gt 0 ]; then
+    nodes_len="$plan_nodes_len"
+  fi
 
   echo "## Configuration"
   echo ""
@@ -728,35 +943,68 @@ dry_run_pipeline() {
   echo "|-------|-------|"
   echo "| name | $name |"
   echo "| description | $description |"
-  echo "| stages | $stages_len |"
+  echo "| nodes | $nodes_len |"
   echo ""
 
-  echo "## Stages"
+  echo "## Nodes"
   echo ""
-  for ((i=0; i<stages_len; i++)); do
-    local stage=$(echo "$config" | jq -r ".stages[$i]")
-    local stage_name=$(echo "$stage" | jq -r ".name")
-    # Bug fix: check .stage first, fall back to .loop (loop-agents-sam)
-    local stage_loop=$(echo "$stage" | jq -r ".stage // empty")
-    [ -z "$stage_loop" ] && stage_loop=$(echo "$stage" | jq -r ".loop // empty")
-    local stage_runs=$(echo "$stage" | jq -r ".runs // 1")
+  for ((i=0; i<nodes_len; i++)); do
+    local node=$(echo "$config" | jq -r ".${nodes_key}[$i]")
+    local node_id=$(echo "$node" | jq -r ".id // .name")
+    local node_pipeline=$(echo "$node" | jq -r ".pipeline // empty")
+    local node_parallel=$(echo "$node" | jq -e '.parallel' 2>/dev/null || true)
+    local stage_loop=$(echo "$node" | jq -r ".stage // empty")
+    [ -z "$stage_loop" ] && stage_loop=$(echo "$node" | jq -r ".loop // empty")
 
-    echo "### Stage $((i+1)): $stage_name"
-    echo ""
-    if [ -n "$stage_loop" ]; then
-      echo "- **Stage:** $stage_loop"
-      echo "- **Max iterations:** $stage_runs"
-
-      # Get loop's termination strategy (v3)
-      local loop_config=$(yaml_to_json "${VALIDATE_SCRIPT_DIR}/../stages/$stage_loop/stage.yaml" 2>/dev/null)
-      local term_type=$(json_get "$loop_config" ".termination.type" "")
-      if [ -n "$term_type" ]; then
-        echo "- **Termination:** $term_type"
+    # Get termination info from compiled plan (which has overrides merged)
+    local compiled_node=$(echo "$plan_json" | jq -r ".nodes[$i] // {}")
+    local node_kind=$(echo "$compiled_node" | jq -r '.kind // empty')
+    local node_ref=$(echo "$compiled_node" | jq -r '.ref // empty')
+    if [ -z "$node_kind" ] || [ "$node_kind" = "null" ]; then
+      if [ -n "$node_pipeline" ]; then
+        node_kind="pipeline"
+      elif [ -n "$node_parallel" ] && [ "$node_parallel" != "null" ]; then
+        node_kind="parallel"
+      else
+        node_kind="stage"
       fi
-    else
-      echo "- **Inline prompt stage**"
-      echo "- **Runs:** $stage_runs"
     fi
+
+    echo "### Node $((i+1)): $node_id"
+    echo ""
+    case "$node_kind" in
+      stage)
+        local term_type=$(echo "$compiled_node" | jq -r '.termination.type // empty')
+        local term_max=$(echo "$compiled_node" | jq -r '.termination.max // empty')
+        if [ -n "$stage_loop" ]; then
+          echo "- **Stage:** $stage_loop"
+          echo "- **Max iterations:** ${term_max:-1}"
+          if [ -n "$term_type" ]; then
+            echo "- **Termination:** $term_type"
+          fi
+        else
+          echo "- **Inline prompt node**"
+          echo "- **Runs:** ${term_max:-1}"
+        fi
+        ;;
+      pipeline)
+        local node_runs=$(echo "$node" | jq -r '.runs // 1')
+        if [ -z "$node_pipeline" ]; then
+          node_pipeline="$node_ref"
+        fi
+        echo "- **Pipeline:** $node_pipeline"
+        echo "- **Runs:** ${node_runs:-1}"
+        ;;
+      parallel)
+        local providers
+        providers=$(echo "$node" | jq -r '.parallel.providers // [] | join(", ")')
+        echo "- **Parallel block**"
+        [ -n "$providers" ] && [ "$providers" != "null" ] && echo "- **Providers:** $providers"
+        ;;
+      *)
+        echo "- **Node kind:** $node_kind"
+        ;;
+    esac
     echo ""
   done
 
@@ -764,7 +1012,7 @@ dry_run_pipeline() {
   echo ""
   echo "\`.claude/pipeline-runs/${session}/\`"
   echo ""
-  echo "Each stage creates:"
-  echo "- \`stage-{N}-{name}/\` - Stage outputs"
-  echo "- \`stage-{N}-{name}/progress.md\` - Stage progress file"
+  echo "Each node creates:"
+  echo "- \`stage-{N}-{name}/\` - Node outputs"
+  echo "- \`stage-{N}-{name}/progress.md\` - Node progress file"
 }

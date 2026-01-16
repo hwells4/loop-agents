@@ -1,0 +1,12 @@
+# Bead Refinement Stage - Convert plan to comprehensive beads
+# Iterative refinement with judgment-based termination
+
+name: bead-refinement
+description: Transform optimization plan into comprehensive, self-documenting beads
+
+termination:
+  type: judgment
+  min_iterations: 3
+  consensus: 2
+
+delay: 3

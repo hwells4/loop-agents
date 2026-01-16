@@ -299,11 +299,28 @@ run_test "Inputs config parsing" test_inputs_config_parsing
 run_test "Inputs config defaults" test_inputs_config_defaults
 
 #-------------------------------------------------------------------------------
-# Initial Inputs Tests (v4: pipeline-level inputs)
+# Initial Inputs Tests (stored in plan.json session.inputs)
 #-------------------------------------------------------------------------------
 
+# Helper to create plan.json with session.inputs
+create_plan_with_inputs() {
+  local dir=$1
+  shift
+  local inputs_json="$1"
+  cat > "$dir/plan.json" << EOF
+{
+  "version": 1,
+  "session": {
+    "name": "test",
+    "inputs": $inputs_json
+  },
+  "nodes": []
+}
+EOF
+}
+
 test_initial_inputs_single_file() {
-  # Setup: initial-inputs.json contains a single file path
+  # Setup: plan.json session.inputs contains a single file path
   # Expected: from_initial array contains that file
   local tmp=$(create_test_dir)
   mkdir -p "$tmp/stage-00-work/iterations"
@@ -311,8 +328,8 @@ test_initial_inputs_single_file() {
   # Create a test input file
   echo "plan content" > "$tmp/test-plan.md"
 
-  # Create initial-inputs.json with absolute path
-  echo '["'"$tmp/test-plan.md"'"]' > "$tmp/initial-inputs.json"
+  # Create plan.json with inputs in session.inputs
+  create_plan_with_inputs "$tmp" '["'"$tmp/test-plan.md"'"]'
 
   local config='{"id":"work","index":0}'
   local inputs=$(build_inputs_json "$tmp" "$config" 1)
@@ -326,7 +343,7 @@ test_initial_inputs_single_file() {
 }
 
 test_initial_inputs_multiple_files() {
-  # Setup: initial-inputs.json contains multiple files
+  # Setup: plan.json session.inputs contains multiple files
   # Expected: from_initial array contains all files
   local tmp=$(create_test_dir)
   mkdir -p "$tmp/stage-00-work/iterations"
@@ -335,7 +352,7 @@ test_initial_inputs_multiple_files() {
   echo "plan 2" > "$tmp/plan2.md"
   echo "plan 3" > "$tmp/plan3.md"
 
-  echo '["'"$tmp/plan1.md"'","'"$tmp/plan2.md"'","'"$tmp/plan3.md"'"]' > "$tmp/initial-inputs.json"
+  create_plan_with_inputs "$tmp" '["'"$tmp/plan1.md"'","'"$tmp/plan2.md"'","'"$tmp/plan3.md"'"]'
 
   local config='{"id":"work","index":0}'
   local inputs=$(build_inputs_json "$tmp" "$config" 1)
@@ -347,7 +364,7 @@ test_initial_inputs_multiple_files() {
 }
 
 test_initial_inputs_empty_default() {
-  # Setup: No initial-inputs.json exists
+  # Setup: No plan.json exists
   # Expected: from_initial is empty array
   local tmp=$(create_test_dir)
   mkdir -p "$tmp/stage-00-work/iterations"
@@ -362,12 +379,12 @@ test_initial_inputs_empty_default() {
 }
 
 test_initial_inputs_invalid_json() {
-  # Setup: initial-inputs.json contains invalid JSON
+  # Setup: plan.json contains invalid JSON
   # Expected: from_initial is empty array (graceful fallback)
   local tmp=$(create_test_dir)
   mkdir -p "$tmp/stage-00-work/iterations"
 
-  echo "not valid json" > "$tmp/initial-inputs.json"
+  echo "not valid json" > "$tmp/plan.json"
 
   local config='{"id":"work","index":0}'
   local inputs=$(build_inputs_json "$tmp" "$config" 1)
@@ -379,13 +396,13 @@ test_initial_inputs_invalid_json() {
 }
 
 test_initial_inputs_in_context_json() {
-  # Setup: Generate context with initial inputs
+  # Setup: Generate context with initial inputs in plan.json
   # Expected: context.json includes from_initial
   local tmp=$(create_test_dir)
   mkdir -p "$tmp/stage-00-work/iterations"
 
   echo "my plan" > "$tmp/the-plan.md"
-  echo '["'"$tmp/the-plan.md"'"]' > "$tmp/initial-inputs.json"
+  create_plan_with_inputs "$tmp" '["'"$tmp/the-plan.md"'"]'
 
   local stage_config='{"id":"work","index":0}'
   local context_file=$(generate_context "test-session" "1" "$stage_config" "$tmp")

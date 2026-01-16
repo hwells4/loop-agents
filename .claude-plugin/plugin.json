@@ -15,5 +15,6 @@
     "ralph",
     "beads",
     "tmux"
-  ]
+  ],
+  "hooks": "./hooks/hooks.json"
 }

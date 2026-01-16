@@ -4,7 +4,7 @@
 name: ideate
 description: Brainstorm creative improvements and new ideas
 
-stages:
-  - name: ideate
+nodes:
+  - id: ideate
     stage: idea-wizard
     runs: 3

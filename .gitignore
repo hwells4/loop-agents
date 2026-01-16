@@ -1,6 +1,9 @@
 # Temporary compatibility symlinks (not part of plugin)
 .claude/
 
+# External dependencies (cloned locally, not committed)
+mcp_agent_mail/
+
 # Session locks (runtime state, never commit)
 # Note: .claude/ above already covers this, but explicit for clarity
 # .claude/locks/

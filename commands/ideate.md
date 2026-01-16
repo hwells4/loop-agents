@@ -8,10 +8,101 @@ Runs the idea-wizard pipeline: brainstorms 20-30 improvements across simplicity,
 
 **Runtime:** ~3 min per iteration
 
-## Usage
+## When Invoked
+
+Ask the user to configure ideation, then show a summary and confirm before launching.
+
+### Step 1: Gather Configuration
+
+Use AskUserQuestion:
+
+```json
+{
+  "questions": [{
+    "question": "How many ideation iterations?",
+    "header": "Iterations",
+    "options": [
+      {"label": "1 (Quick)", "description": "~3 min, 5 top ideas"},
+      {"label": "3 (Recommended)", "description": "~10 min, diverse perspectives"},
+      {"label": "5 (Comprehensive)", "description": "~15 min, thorough exploration"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+Then ask for session name:
+
+```json
+{
+  "questions": [{
+    "question": "Session name for this ideation?",
+    "header": "Session",
+    "options": [
+      {"label": "Derive from branch", "description": "Use current git branch name"},
+      {"label": "ideas", "description": "Use 'ideas' as session name"},
+      {"label": "Custom", "description": "I'll specify a name"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+### Step 2: Show Pre-Launch Summary and Confirm
 
 ```
-/ideate              # 1 iteration (quick brainstorm)
+## Pre-Launch Summary
+
+Stage: idea-wizard
+Session: {session}
+Provider: claude (opus)
+Iterations: {N}
+
+What will happen:
+  • Each iteration generates 20-30 raw ideas
+  • Ideas scored by Impact/Effort/Risk
+  • Top 5 ideas per iteration saved
+  • Output: docs/ideas-{session}.md
+
+Categories covered:
+  • Simplicity - What to remove or simplify
+  • Performance - Speed and efficiency gains
+  • User Experience - Delight and usability
+  • Reliability - Error handling, edge cases
+  • Developer Experience - Maintainability, clarity
+
+Estimated runtime: ~{N*3} minutes
+```
+
+```json
+{
+  "questions": [{
+    "question": "Ready to start ideation?",
+    "header": "Confirm",
+    "options": [
+      {"label": "Launch", "description": "Start generating ideas"},
+      {"label": "Edit Config", "description": "Change iterations, provider, or focus area"},
+      {"label": "Cancel", "description": "Don't start, return to conversation"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**If "Launch":** Start the pipeline
+**If "Edit Config":** Ask what to change (can add --context for focus area)
+**If "Cancel":** Abort
+
+### Step 3: Launch
+
+```bash
+./scripts/run.sh idea-wizard {session} {iterations}
+```
+
+## Usage (Direct Commands)
+
+```
+/ideate              # Interactive (recommended)
 /ideate 3            # 3 iterations (~10 min, diverse ideas)
 /ideate 5            # 5 iterations (~15 min, comprehensive)
 ```

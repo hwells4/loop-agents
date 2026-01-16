@@ -1,0 +1,8 @@
+name: test-pipeline
+description: Fixture pipeline for v3 compile tests
+defaults:
+  provider: codex
+nodes:
+  - id: alpha
+    stage: test-stage
+    runs: 2

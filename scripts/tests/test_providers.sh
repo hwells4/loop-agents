@@ -94,13 +94,13 @@ test_validate_codex_model_valid() {
   assert_eq 0 $? "gpt-5-codex should be valid"
 
   validate_codex_model "o3" 2>/dev/null
-  assert_eq 0 $? "o3 should be valid"
+  assert_neq 0 $? "o3 should be invalid"
 
   validate_codex_model "o3-mini" 2>/dev/null
-  assert_eq 0 $? "o3-mini should be valid"
+  assert_neq 0 $? "o3-mini should be invalid"
 
   validate_codex_model "o4-mini" 2>/dev/null
-  assert_eq 0 $? "o4-mini should be valid"
+  assert_neq 0 $? "o4-mini should be invalid"
 }
 
 test_validate_codex_model_invalid() {

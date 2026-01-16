@@ -1,0 +1,11 @@
+# Review Oversights Stage - Catch mistakes and gaps in analysis
+# Single iteration review pass with ultrathink
+
+name: review-oversights
+description: Review optimization plan for oversights, omissions, and conceptual errors
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

@@ -53,26 +53,27 @@ Look for what doesn't need to exist. Functions that could merge into something c
 
 Append your findings to the progress file.
 
-### Write Status
+### Write Result
 
-After completing your exploration, write your status to `${STATUS}`:
+After completing your exploration, write your result to `${RESULT}` (set `signals.plateau_suspected` true when further exploration would yield diminishing returns):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "Why there's more to uncover, or why you've found what there is to find",
   "summary": "Sharp observations from this iteration—what you discovered, what's suspect, what could be elegant",
   "work": {
     "items_completed": [],
     "files_touched": []
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision guide:**
-- `"continue"` - There's more territory to explore, patterns to investigate, or insights waiting to surface
-- `"stop"` - You've found what there is to find; further exploration would yield diminishing returns
-- `"error"` - Something blocked your exploration
 
 Use ultrathink.

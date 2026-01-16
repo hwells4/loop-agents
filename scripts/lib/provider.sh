@@ -101,16 +101,36 @@ execute_claude() {
   return $exit_code
 }
 
+# Get the timeout command (platform-specific)
+# Returns: timeout command name or empty if unavailable
+_get_timeout_cmd() {
+  if command -v timeout &>/dev/null; then
+    echo "timeout"
+  elif command -v gtimeout &>/dev/null; then
+    echo "gtimeout"
+  else
+    echo ""
+  fi
+}
+
 # Execute Codex with a prompt
 # Usage: execute_codex "$prompt" "$model" "$output_file"
-# Model: gpt-5.2-codex (default), gpt-5-codex, o3, etc.
-# Reasoning effort: minimal, low, medium, high (default: high)
-# Configure via env vars: CODEX_MODEL, CODEX_REASONING_EFFORT
+# Model: gpt-5.2-codex (default), or model:reasoning like gpt-5.2-codex:xhigh
+# Reasoning effort: xhigh, high, medium, low, minimal (default: high)
+# Environment:
+#   CODEX_TIMEOUT - timeout in seconds (default: 900 = 15 minutes)
 execute_codex() {
   local prompt=$1
-  local model=${2:-"${CODEX_MODEL:-gpt-5.2-codex}"}
+  local model_arg=${2:-"${CODEX_MODEL:-gpt-5.2-codex}"}
   local output_file=$3
-  local reasoning=${CODEX_REASONING_EFFORT:-"high"}
+  local timeout_seconds=${CODEX_TIMEOUT:-900}
+
+  # Parse model:reasoning format (e.g., gpt-5.2-codex:xhigh)
+  local model="${model_arg%%:*}"
+  local reasoning="${CODEX_REASONING_EFFORT:-high}"
+  if [[ "$model_arg" == *:* ]]; then
+    reasoning="${model_arg#*:}"
+  fi
 
   # Validate model
   validate_codex_model "$model" || return 1
@@ -118,23 +138,70 @@ execute_codex() {
   # Validate reasoning effort
   validate_reasoning_effort "$reasoning" || return 1
 
+  # Append exit instruction to prevent follow-up waiting in pipeline mode
+  local augmented_prompt="${prompt}
+
+---
+IMPORTANT: After completing this task and writing any required output files, EXIT IMMEDIATELY.
+Do NOT wait for follow-up. Do NOT ask for confirmation. The pipeline handles iteration control."
+
+  # Determine timeout command (timeout on Linux, gtimeout on macOS with coreutils)
+  local timeout_cmd
+  timeout_cmd=$(_get_timeout_cmd)
+
+  if [ -z "$timeout_cmd" ]; then
+    echo "Warning: timeout/gtimeout not found. Codex will run without timeout protection." >&2
+    echo "Install coreutils on macOS: brew install coreutils" >&2
+  fi
+
   # Use pipefail to capture exit code through pipe
   set -o pipefail
-  if [ -n "$output_file" ]; then
-    printf '%s' "$prompt" | codex exec \
-      --dangerously-bypass-approvals-and-sandbox \
-      -m "$model" \
-      -c "model_reasoning_effort=\"$reasoning\"" \
-      2>&1 | tee "$output_file"
+  local exit_code
+
+  if [ -n "$timeout_cmd" ]; then
+    # Run with timeout wrapper
+    if [ -n "$output_file" ]; then
+      printf '%s' "$augmented_prompt" | "$timeout_cmd" --signal=TERM --kill-after=30s "$timeout_seconds" \
+        codex exec \
+          --dangerously-bypass-approvals-and-sandbox \
+          -m "$model" \
+          -c "model_reasoning_effort=\"$reasoning\"" \
+        2>&1 | tee "$output_file"
+    else
+      printf '%s' "$augmented_prompt" | "$timeout_cmd" --signal=TERM --kill-after=30s "$timeout_seconds" \
+        codex exec \
+          --dangerously-bypass-approvals-and-sandbox \
+          -m "$model" \
+          -c "model_reasoning_effort=\"$reasoning\"" \
+        2>&1
+    fi
+    exit_code=$?
   else
-    printf '%s' "$prompt" | codex exec \
-      --dangerously-bypass-approvals-and-sandbox \
-      -m "$model" \
-      -c "model_reasoning_effort=\"$reasoning\"" \
-      2>&1
+    # Run without timeout (fallback when timeout command unavailable)
+    if [ -n "$output_file" ]; then
+      printf '%s' "$augmented_prompt" | codex exec \
+        --dangerously-bypass-approvals-and-sandbox \
+        -m "$model" \
+        -c "model_reasoning_effort=\"$reasoning\"" \
+        2>&1 | tee "$output_file"
+    else
+      printf '%s' "$augmented_prompt" | codex exec \
+        --dangerously-bypass-approvals-and-sandbox \
+        -m "$model" \
+        -c "model_reasoning_effort=\"$reasoning\"" \
+        2>&1
+    fi
+    exit_code=$?
   fi
-  local exit_code=$?
   set +o pipefail
+
+  # Handle timeout exit codes
+  if [ $exit_code -eq 124 ]; then
+    echo "Warning: Codex process timed out after ${timeout_seconds}s (SIGTERM)" >&2
+  elif [ $exit_code -eq 137 ]; then
+    echo "Warning: Codex process killed after timeout grace period (SIGKILL)" >&2
+  fi
+
   return $exit_code
 }
 
@@ -162,9 +229,11 @@ execute_agent() {
     fi
     echo "$response"
 
-    # Write mock status file if path is provided
-    # MOCK_STATUS_FILE should be set by the engine before calling execute_agent
-    if [ -n "$MOCK_STATUS_FILE" ] && type write_mock_status &>/dev/null; then
+    # Write mock result/status files if paths are provided
+    # MOCK_RESULT_FILE / MOCK_STATUS_FILE should be set by the engine before calling execute_agent
+    if [ -n "$MOCK_RESULT_FILE" ] && type write_mock_result &>/dev/null; then
+      write_mock_result "$MOCK_RESULT_FILE" "$iteration"
+    elif [ -n "$MOCK_STATUS_FILE" ] && type write_mock_status &>/dev/null; then
       write_mock_status "$MOCK_STATUS_FILE" "$iteration"
     fi
 

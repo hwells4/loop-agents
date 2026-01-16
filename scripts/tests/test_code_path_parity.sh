@@ -99,6 +99,18 @@ _setup_mock_environment() {
   export STAGES_DIR="$test_dir/stages"
 }
 
+_sync_state_with_events() {
+  local run_dir=$1
+  local session=$2
+  local session_type=$3
+  local state_file="$run_dir/state.json"
+  local events_file="$run_dir/events.jsonl"
+
+  if [ -f "$events_file" ]; then
+    reconcile_with_events "$state_file" "$events_file" "$session" "$session_type"
+  fi
+}
+
 #-------------------------------------------------------------------------------
 # Contract Tests: State Tracking via State File Verification
 #
@@ -126,6 +138,8 @@ test_run_stage_tracks_iteration_in_state() {
     # Run engine (mock mode should complete quickly)
     "$SCRIPT_DIR/engine.sh" pipeline --single-stage test-stage "$session" 2 2>/dev/null || true
   )
+
+  _sync_state_with_events "$run_dir" "$session" "loop"
 
   # Verify state file exists and has iteration tracking
   assert_file_exists "$state_file" "State file should exist after run_stage"
@@ -164,6 +178,8 @@ test_run_pipeline_tracks_iteration_in_state() {
     $SCRIPT_DIR/engine.sh pipeline "$pipeline_file" "$session" 2>/dev/null
   )
 
+  _sync_state_with_events "$run_dir" "$session" "pipeline"
+
   # Verify state file exists and has iteration tracking
   assert_file_exists "$state_file" "State file should exist after run_pipeline"
 
@@ -196,6 +212,8 @@ test_both_paths_produce_equivalent_state_tracking() {
     $SCRIPT_DIR/engine.sh pipeline --single-stage test-stage "stage-session" $iterations 2>/dev/null
   )
   local stage_state="$test_dir_stage/.claude/pipeline-runs/stage-session/state.json"
+  local stage_run_dir="$test_dir_stage/.claude/pipeline-runs/stage-session"
+  _sync_state_with_events "$stage_run_dir" "stage-session" "loop"
 
   # Run pipeline path
   _setup_mock_environment "$test_dir_pipeline" "pipeline-session"
@@ -206,6 +224,8 @@ test_both_paths_produce_equivalent_state_tracking() {
     $SCRIPT_DIR/engine.sh pipeline "$test_dir_pipeline/test-pipeline.yaml" "pipeline-session" 2>/dev/null
   )
   local pipeline_state="$test_dir_pipeline/.claude/pipeline-runs/pipeline-session/state.json"
+  local pipeline_run_dir="$test_dir_pipeline/.claude/pipeline-runs/pipeline-session"
+  _sync_state_with_events "$pipeline_run_dir" "pipeline-session" "pipeline"
 
   # Both should have updated iteration tracking
   local stage_iter=$(jq -r '.iteration_completed // 0' "$stage_state" 2>/dev/null)
@@ -303,6 +323,8 @@ test_regression_guard_iteration_tracking() {
     export MOCK_MODE=true
     $SCRIPT_DIR/engine.sh pipeline "$test_dir/test-pipeline.yaml" "$session" 2>/dev/null
   )
+
+  _sync_state_with_events "$test_dir/.claude/pipeline-runs/$session" "$session" "pipeline"
 
   # THE CONTRACT: After running, state.json MUST have:
   # - iteration > 0 (mark_iteration_started was called)

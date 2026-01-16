@@ -1,0 +1,11 @@
+# Deep Analysis Stage - Comprehensive codebase study for optimization opportunities
+# Single iteration, uses ultrathink for deep reasoning
+
+name: deep-analysis
+description: Deeply analyze codebase architecture and identify optimization opportunities
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

@@ -55,18 +55,18 @@ test_validate_refine_pipeline() {
   assert_eq "0" "$result" "refine pipeline passes validation"
 }
 
-test_validate_quick_refine_pipeline() {
-  # Quick-refine pipeline should pass validation
-  validate_pipeline "quick-refine" "--quiet"
+test_validate_bug_hunt_pipeline() {
+  # Bug-hunt pipeline should pass validation
+  validate_pipeline "bug-hunt" "--quiet"
   local result=$?
-  assert_eq "0" "$result" "quick-refine pipeline passes validation"
+  assert_eq "0" "$result" "bug-hunt pipeline passes validation"
 }
 
-test_validate_deep_refine_pipeline() {
-  # Deep-refine pipeline should pass validation
-  validate_pipeline "deep-refine" "--quiet"
+test_validate_dual_analyze_pipeline() {
+  # Dual-analyze pipeline should pass validation
+  validate_pipeline "dual-analyze" "--quiet"
   local result=$?
-  assert_eq "0" "$result" "deep-refine pipeline passes validation"
+  assert_eq "0" "$result" "dual-analyze pipeline passes validation"
 }
 
 #-------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ run_test "Validate elegance loop" test_validate_elegance_loop
 run_test "Validate idea-wizard loop" test_validate_idea_wizard_loop
 run_test "Validate nonexistent loop fails" test_validate_nonexistent_loop
 run_test "Validate refine pipeline" test_validate_refine_pipeline
-run_test "Validate quick-refine pipeline" test_validate_quick_refine_pipeline
-run_test "Validate deep-refine pipeline" test_validate_deep_refine_pipeline
+run_test "Validate bug-hunt pipeline" test_validate_bug_hunt_pipeline
+run_test "Validate dual-analyze pipeline" test_validate_dual_analyze_pipeline
 
 test_summary

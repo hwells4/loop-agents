@@ -36,6 +36,7 @@ FIXTURES_BASE="$PROJECT_ROOT_DIR/scripts/tests/fixtures/integration"
 # Source dependencies
 source "$LIB_DIR/test.sh"
 source "$LIB_DIR/mock.sh"
+source "$LIB_DIR/state.sh"
 
 #-------------------------------------------------------------------------------
 # Test Environment Setup
@@ -114,6 +115,22 @@ _copy_test_stage() {
 # Mock Engine Execution
 #-------------------------------------------------------------------------------
 
+# Sync state.json snapshot from events.jsonl when available.
+_sync_state_with_events() {
+  local test_dir=$1
+  local session=$2
+  local session_type=${3:-""}
+
+  local run_dir
+  run_dir=$(get_run_dir "$test_dir" "$session")
+  local state_file="$run_dir/state.json"
+  local events_file="$run_dir/events.jsonl"
+
+  if [ -f "$events_file" ]; then
+    reconcile_with_events "$state_file" "$events_file" "$session" "$session_type"
+  fi
+}
+
 # Run engine with mocked execution
 # Usage: run_mock_engine "$test_dir" "$session" "$max_iterations" ["$stage_type"]
 # Returns: exit code from engine
@@ -130,11 +147,14 @@ run_mock_engine() {
   _setup_status_writer "$test_dir"
 
   # Run the engine
+  local exit_code=0
   (
     cd "$test_dir"
     "$ENGINE_SCRIPT" pipeline --single-stage "$stage_type" "$session" "$max_iterations" 2>&1
   )
-  return $?
+  exit_code=$?
+  _sync_state_with_events "$test_dir" "$session" "loop"
+  return $exit_code
 }
 
 # Run multi-stage pipeline with mocked execution
@@ -146,11 +166,14 @@ run_mock_pipeline() {
 
   export MOCK_MODE=true
 
+  local exit_code=0
   (
     cd "$test_dir"
     "$ENGINE_SCRIPT" pipeline "$pipeline_file" "$session" 2>&1
   )
-  return $?
+  exit_code=$?
+  _sync_state_with_events "$test_dir" "$session" "pipeline"
+  return $exit_code
 }
 
 # Run multi-stage pipeline with resume flag
@@ -162,11 +185,14 @@ run_mock_pipeline_resume() {
 
   export MOCK_MODE=true
 
+  local exit_code=0
   (
     cd "$test_dir"
     "$ENGINE_SCRIPT" pipeline "$pipeline_file" "$session" --resume 2>&1
   )
-  return $?
+  exit_code=$?
+  _sync_state_with_events "$test_dir" "$session" "pipeline"
+  return $exit_code
 }
 
 # Run engine with resume flag
@@ -179,11 +205,14 @@ run_mock_engine_resume() {
 
   export MOCK_MODE=true
 
+  local exit_code=0
   (
     cd "$test_dir"
     "$ENGINE_SCRIPT" pipeline --single-stage "$stage_type" "$session" "$max_iterations" --resume 2>&1
   )
-  return $?
+  exit_code=$?
+  _sync_state_with_events "$test_dir" "$session" "loop"
+  return $exit_code
 }
 
 # Setup status writer that creates status.json from fixtures
@@ -348,6 +377,8 @@ run_and_capture_log() {
     "$ENGINE_SCRIPT" pipeline --single-stage "$stage_type" "$session" "$max_iterations" 2>&1
   )
   local exit_code=$?
+
+  _sync_state_with_events "$test_dir" "$session" "loop"
 
   echo "$INTEGRATION_LOG"
   return $exit_code

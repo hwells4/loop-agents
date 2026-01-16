@@ -354,7 +354,10 @@ EOF
 
   local run_dir="$test_dir/.claude/pipeline-runs/$session"
   local context_file="$run_dir/stage-00-$stage_name/iterations/001/context.json"
-  assert_file_exists "$run_dir/initial-inputs.json" "initial-inputs manifest created in run dir"
+  # Inputs are now stored in plan.json session.inputs, not a separate file
+  local plan_inputs
+  plan_inputs=$(jq -c '.session.inputs // []' "$run_dir/plan.json")
+  assert_neq "[]" "$plan_inputs" "session.inputs in plan.json contains initial inputs"
   assert_file_exists "$context_file" "context.json generated for pipeline iteration"
 
   local count

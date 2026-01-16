@@ -87,6 +87,7 @@ generate_context() {
   fi
   local output_file="$stage_dir/output.md"
   local status_file="$iter_dir/status.json"
+  local result_file="$iter_dir/result.json"
 
   # Ensure directories exist
   mkdir -p "$iter_dir"
@@ -120,6 +121,7 @@ generate_context() {
     --arg progress "$progress_file" \
     --arg output "$output_file" \
     --arg status "$status_file" \
+    --arg result "$result_file" \
     --argjson inputs "$inputs_json" \
     --argjson max_iterations "$max_iterations" \
     --argjson remaining "$remaining_seconds" \
@@ -134,7 +136,8 @@ generate_context() {
         stage_dir: $stage_dir,
         progress: $progress,
         output: $output,
-        status: $status
+        status: $status,
+        result: $result
       },
       inputs: $inputs,
       limits: {
@@ -235,11 +238,11 @@ build_inputs_json() {
     fi
   fi
 
-  # Load initial inputs if available (v4: pipeline-level inputs)
+  # Load initial inputs from plan.json session.inputs
   local from_initial="[]"
-  local initial_file="$run_dir/initial-inputs.json"
-  if [ -f "$initial_file" ]; then
-    from_initial=$(cat "$initial_file" 2>/dev/null || echo "[]")
+  local plan_file="$run_dir/plan.json"
+  if [ -f "$plan_file" ]; then
+    from_initial=$(jq -c '.session.inputs // []' "$plan_file" 2>/dev/null || echo "[]")
     # Validate it's valid JSON array
     if ! echo "$from_initial" | jq -e 'type == "array"' >/dev/null 2>&1; then
       from_initial="[]"

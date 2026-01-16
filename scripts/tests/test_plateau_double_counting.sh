@@ -55,12 +55,14 @@ EOF
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # With the bug: consecutive starts at 1 (status_file) + 1 (history) = 2 >= consensus
   # Correct: iteration 1 < min_iterations 2, should return 1 (continue)
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Single stop at iteration 1 should NOT trigger completion (min_iterations=2)"
 
   rm -rf "$test_dir"
@@ -98,12 +100,14 @@ EOF
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # With the bug: consecutive = 1 (status) + 1 (history[1]) = 2 >= consensus
   # Correct: Only 1 actual stop (iteration 2), need 2 consecutive, should continue
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Single stop should NOT be double-counted to reach consensus=2"
 
   rm -rf "$test_dir"
@@ -142,11 +146,13 @@ EOF
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Two actual consecutive stops should trigger completion
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "0" "$result" "Two consecutive stops should trigger completion"
 
   rm -rf "$test_dir"
@@ -189,12 +195,14 @@ EOF
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Bug: counts stage-b's stop twice (status + history) = 2 >= consensus
   # Correct: iteration 1 < min_iterations 2 for stage-b, should continue
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Multi-stage: single stop in current stage should not be double-counted"
 
   rm -rf "$test_dir"
@@ -233,10 +241,12 @@ EOF
   # Test with consensus=3 - should NOT complete (only 2 actual stops)
   export MIN_ITERATIONS=1
   export CONSENSUS=3
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   # With buggy code: 1 (status) + 2 (history stops) = 3 >= consensus -> completes (wrong!)
   # Correct: only 2 actual consecutive stops, need 3, should continue
   assert_eq "1" "$result" "With consensus=3 and only 2 actual stops, should NOT complete"
@@ -273,11 +283,13 @@ EOF
 
   export MIN_ITERATIONS=1
   export CONSENSUS=1
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # With consensus=1, a single stop should complete
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "0" "$result" "With consensus=1, single stop should trigger completion"
 
   rm -rf "$test_dir"

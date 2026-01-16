@@ -75,6 +75,33 @@ Task(
 )
 ```
 
+**CRITICAL: User-Provided Prompts**
+
+If the user provides a specific prompt or prompt text, preserve it EXACTLY as given. Do not rewrite, restructure, or "improve" their prompt. Add only the minimal engine integration wrapper:
+
+```markdown
+# {Stage Name}
+
+Read context from: ${CTX}
+Progress file: ${PROGRESS}
+Status output: ${STATUS}
+Session: ${SESSION_NAME}
+Iteration: ${ITERATION}
+
+${CONTEXT}
+
+---
+
+[USER'S EXACT PROMPT TEXT HERE - VERBATIM, NO CHANGES]
+
+---
+
+## Engine Integration
+[minimal: load context, write status]
+```
+
+The user's prompt is the core content. The engine wrapper is just plumbing.
+
 **Stage specification format:**
 ```yaml
 name: stage-name
@@ -94,7 +121,7 @@ commands:
   types: "npm run typecheck"
 inputs:
   from_initial: true         # Pass CLI --input files
-  from_stage: plan           # Outputs from named stage
+  from: plan                 # Outputs from named node
   from_parallel: analyze     # Outputs from parallel block
 ```
 
@@ -122,27 +149,28 @@ description: What this pipeline does
 commands:
   test: "npm test"
   lint: "npm run lint"
-stages:
-  - name: stage-name
+# NOTE: "stages:" is deprecated but still works; prefer "nodes:"
+nodes:
+  - id: stage-name
     stage: improve-plan
     runs: 5
     inputs:
-      from: previous-stage    # Wire outputs between stages
+      from: previous-node     # Wire outputs between nodes
       select: latest          # "latest" (default) or "history"
 
   # Parallel block: run multiple providers concurrently
-  - name: dual-review
+  - id: dual-review
     parallel:
       providers: [claude, codex]
       stages:
-        - name: analyze
+        - id: analyze
           stage: code-review
           termination:
             type: fixed
             iterations: 1
 
-  # Post-parallel stage: consume parallel outputs
-  - name: synthesize
+  # Post-parallel node: consume parallel outputs
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: analyze  # Gets outputs from all parallel providers

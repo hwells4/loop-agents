@@ -4,14 +4,14 @@
 name: bug-hunt
 description: Discover bugs with fresh eyes, triage elegantly, refine tasks, implement fixes
 
-stages:
+nodes:
   # Stage 1: Explore codebase and document bugs (8 iterations)
-  - name: discover
+  - id: discover
     stage: bug-discovery
     runs: 8
 
   # Stage 2: Triage bugs, find patterns, create elegant solutions as beads
-  - name: triage
+  - id: triage
     stage: bug-triage
     runs: 2
     inputs:
@@ -19,7 +19,7 @@ stages:
       select: latest
 
   # Stage 3: Refine the tasks created during triage
-  - name: refine
+  - id: refine
     stage: refine-tasks
     runs: 3
     inputs:
@@ -27,7 +27,7 @@ stages:
       select: latest
 
   # Stage 4: Implement the fixes
-  - name: fix
+  - id: fix
     stage: ralph
     runs: 25
     inputs:

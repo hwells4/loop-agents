@@ -1,0 +1,11 @@
+# Synthesize Plans Stage - Merge best elements from parallel analyses
+# Takes outputs from Claude and Codex, creates hybrid superior plan
+
+name: synthesize-plans
+description: Compare parallel analysis outputs and merge best elements into hybrid plan
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

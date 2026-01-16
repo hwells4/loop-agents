@@ -63,7 +63,13 @@ Step 3: VALIDATE & CONFIRM
 ├─ Present to user
 └─ Get yes/no confirmation
 
-OUTPUT: Confirmed architecture spec
+Step 4: LINT & DRY-RUN (Mandatory)
+├─ Run: ./scripts/run.sh lint pipeline {name}
+├─ Run: ./scripts/run.sh dry-run pipeline {name} preview
+├─ Fix any errors before proceeding
+└─ Show user the validated output
+
+OUTPUT: Confirmed, validated architecture spec
 ```
 
 **CRITICAL:** Cannot proceed to confirmation without spawning the `pipeline-architect` subagent. Defined in `agents/pipeline-architect.md`.
@@ -90,14 +96,15 @@ The designer produces a confirmed spec saved to `.claude/pipeline-specs/{name}.y
 name: pipeline-name
 confirmed_at: 2026-01-12T10:00:00Z
 
-# Optional: commands passed to all stages
+# Optional: commands passed to all nodes
 commands:
   test: "npm test"
   lint: "npm run lint"
   types: "npm run typecheck"
 
-stages:
-  - name: stage-name
+# NOTE: "stages:" is deprecated but still works; prefer "nodes:"
+nodes:
+  - id: stage-name
     description: What this stage does
     exists: true | false
     termination:
@@ -111,21 +118,21 @@ stages:
       Optional instructions injected into prompt as ${CONTEXT}
     inputs:
       from_initial: true         # Pass CLI --input files
-      from_stage: plan           # Outputs from named stage
+      from: plan                 # Outputs from named node
 
   # Parallel block: run multiple providers concurrently
-  - name: dual-review
+  - id: dual-review
     parallel:
       providers: [claude, codex]
       stages:
-        - name: analyze
+        - id: analyze
           stage: code-review
           termination:
             type: fixed
             iterations: 1
 
-  # Post-parallel stage: consume parallel outputs
-  - name: synthesize
+  # Post-parallel node: consume parallel outputs
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: analyze     # Gets outputs from all parallel providers
@@ -220,4 +227,6 @@ Task(
 - [ ] For build: architecture agent spawned (mandatory)
 - [ ] Architecture presented clearly to user
 - [ ] User gave explicit yes/no confirmation
+- [ ] On yes: lint passed (no errors)
+- [ ] On yes: dry-run shows correct config
 - [ ] On yes: spec saved and pipeline-creator invoked

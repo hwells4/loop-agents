@@ -1,0 +1,8 @@
+name: create-tasks
+description: Create beads from a plan document
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 0

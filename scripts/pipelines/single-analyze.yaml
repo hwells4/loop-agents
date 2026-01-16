@@ -1,8 +1,8 @@
 name: single-analyze
 description: Single provider test
 
-stages:
-  - name: analyze
+nodes:
+  - id: analyze
     parallel:
       providers: [claude]
       stages:

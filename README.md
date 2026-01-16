@@ -39,7 +39,7 @@ The engine is built on bash scripts that ship with the Claude Code plugin. It su
 - **Run providers in parallel.** Spin up Claude and Codex on the same stage tog et different perspectives on a problem. Have each iterate separately, then synthesize the results.
 - **Stop when it makes sense.** Fixed count, two-agent consensus, or queue empty.
 
-## This is a an example of a Pipeline built on top of our engine
+## Example Pipeline
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐

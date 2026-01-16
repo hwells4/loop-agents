@@ -83,27 +83,28 @@ Append your findings to the progress file:
 [Specific tests that should be added]
 ```
 
-### Step 6: Write Status
+### Step 6: Write Result
 
-After scanning, write your status to `${STATUS}`:
+After scanning, write your result to `${RESULT}` (set `signals.plateau_suspected` true when major areas are covered and remaining gaps are documented):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "Brief explanation of why work should continue or stop",
   "summary": "One paragraph describing what gaps you found this iteration",
   "work": {
     "items_completed": [],
     "files_touched": []
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision guide:**
-- `"continue"` - There are still major areas unexplored, or you found significant gaps that need verification
-- `"stop"` - All major code areas have been scanned; remaining gaps are documented
-- `"error"` - Something went wrong (couldn't find source files, test framework unclear, etc.)
 
 **Priority guide for gaps:**
 - **Critical**: Core business logic with no tests

@@ -1,6 +1,13 @@
 #!/bin/bash
 # Desktop Notifications and Completion Logging
 
+NOTIFY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${LIB_DIR:-$NOTIFY_SCRIPT_DIR}"
+
+if [ -f "$LIB_DIR/lock.sh" ]; then
+  source "$LIB_DIR/lock.sh"
+fi
+
 # Send desktop notification
 # Usage: notify "$title" "$message"
 notify() {
@@ -22,6 +29,17 @@ notify() {
 
 # Record completion to JSON log
 # Usage: record_completion "$status" "$session" "$type"
+_notify_write_completion() {
+  local file=$1
+  local entry=$2
+
+  if [ -f "$file" ]; then
+    jq --argjson entry "$entry" '. += [$entry]' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+  else
+    echo "[$entry]" > "$file"
+  fi
+}
+
 record_completion() {
   local status=$1
   local session=$2
@@ -39,10 +57,10 @@ record_completion() {
     --arg ts "$timestamp" \
     '{session: $session, type: $type, status: $status, completed_at: $ts}')
 
-  if [ -f "$file" ]; then
-    jq --argjson entry "$entry" '. += [$entry]' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+  if type with_file_lock &>/dev/null; then
+    with_file_lock "$file" _notify_write_completion "$file" "$entry"
   else
-    echo "[$entry]" > "$file"
+    _notify_write_completion "$file" "$entry"
   fi
 
   notify "Loop Agent" "$type $session: $status"

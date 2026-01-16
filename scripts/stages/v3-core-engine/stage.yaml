@@ -1,0 +1,14 @@
+# v3 Core Engine Stage - Codex worker for event-sourced engine implementation
+# Phases 1-6 only (no hooks/library features)
+
+name: v3-core-engine
+description: Implement v3 event-sourced engine (phases 1-6, core only)
+
+provider: codex
+model: gpt-5.2-codex
+
+termination:
+  type: queue
+  command: "bd ready --label=pipeline/v3 --label-any=phase/1-foundation,phase/2-node-executor,phase/3-termination,phase/4-parallel,phase/5-observability,phase/6-testing --limit=1"
+
+delay: 5

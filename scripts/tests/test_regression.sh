@@ -103,7 +103,7 @@ test_prompts_use_ctx_variable() {
   done
 }
 
-test_prompts_use_status_variable() {
+test_prompts_use_result_variable() {
   for loop_dir in "$STAGES_DIR"/*/; do
     local loop_name=$(basename "$loop_dir")
     local prompt_file=$(get_prompt_path "$loop_dir")
@@ -114,7 +114,7 @@ test_prompts_use_status_variable() {
     fi
 
     local content=$(cat "$prompt_file")
-    assert_contains "$content" '${STATUS}' "$loop_name prompt uses \${STATUS}"
+    assert_contains "$content" '${RESULT}' "$loop_name prompt uses \${RESULT}"
   done
 }
 
@@ -164,7 +164,7 @@ run_test "elegance stage v3 schema" test_elegance_stage_v3_schema
 run_test "idea-wizard stage v3 schema" test_idea_wizard_stage_v3_schema
 run_test "refine-tasks stage v3 schema" test_refine_beads_stage_v3_schema
 run_test "Prompts use CTX variable" test_prompts_use_ctx_variable
-run_test "Prompts use STATUS variable" test_prompts_use_status_variable
+run_test "Prompts use RESULT variable" test_prompts_use_result_variable
 run_test "No deprecated output_parse" test_no_deprecated_output_parse
 run_test "No deprecated completion field" test_no_deprecated_completion_field
 run_test "parse.sh removed" test_parse_sh_removed

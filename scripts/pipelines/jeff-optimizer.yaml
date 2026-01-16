@@ -1,0 +1,56 @@
+# Jeff Optimizer Pipeline
+# Parallel Claude+Codex analysis → synthesis → iterative bead refinement
+#
+# Flow:
+# 1. Parallel block: Claude and Codex independently analyze codebase
+#    - Each runs: deep-analysis → review-oversights
+#    - Claude outputs: PLAN_FOR_ADVANCED_OPTIMIZATIONS_ROUND_1__OPUS.md
+#    - Codex outputs: PLAN_FOR_ADVANCED_OPTIMIZATIONS_ROUND_1__GPT.md
+# 2. Synthesis: Claude compares both plans, merges best elements
+# 3. Bead refinement: 3-5 iterations to create comprehensive beads
+# 4. Bead polish: 3-5 iterations for final validation
+
+name: jeff-optimizer
+description: Multi-model optimization analysis with parallel Claude+Codex, synthesis, and iterative bead refinement
+
+nodes:
+  # Stage 1-2: Parallel analysis with Claude and Codex
+  - id: parallel-analysis
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - id: analyze
+          stage: deep-analysis
+          termination:
+            type: fixed
+            iterations: 1
+        - id: review
+          stage: review-oversights
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Stage 3: Synthesize both plans into hybrid
+  - id: synthesize
+    stage: synthesize-plans
+    runs: 1
+    inputs:
+      from_parallel:
+        stage: review
+        block: parallel-analysis
+
+  # Stage 4: Bead refinement (3-5 iterations)
+  - id: refine
+    stage: bead-refinement
+    runs: 5
+    inputs:
+      from: synthesize
+      select: latest
+
+  # Stage 5: Final bead polish (3-5 iterations)
+  - id: polish
+    stage: bead-polish
+    runs: 5
+    inputs:
+      from: refine
+      select: latest

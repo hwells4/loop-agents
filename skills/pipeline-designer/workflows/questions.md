@@ -40,24 +40,24 @@ See `references/v3-system.md` for full details. Key variables:
 | `${ITERATION}` | Current iteration (1-based) |
 | `${SESSION_NAME}` | Session identifier |
 
-### "How do stages connect in multi-stage pipelines?"
+### "How do nodes connect in multi-stage pipelines?"
 
-Stages connect via inputs:
+Nodes connect via inputs:
 
 ```yaml
-stages:
-  - name: plan-stage
+nodes:
+  - id: plan-stage
     stage: improve-plan
     runs: 5
 
-  - name: bead-stage
+  - id: bead-stage
     stage: refine-tasks
     runs: 5
     inputs:
       from: plan-stage
 ```
 
-The second stage reads outputs via `context.json`:
+The second node reads outputs via `context.json`:
 
 ```bash
 # In the prompt template for bead-stage

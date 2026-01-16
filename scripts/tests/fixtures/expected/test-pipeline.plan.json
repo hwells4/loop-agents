@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "compiled_at": "2026-01-14T00:00:00Z",
+  "source": {
+    "path": "scripts/tests/fixtures/pipelines/test-pipeline.yaml",
+    "sha256": "REPLACE_SHA"
+  },
+  "session": {
+    "name": "fixture-session",
+    "created_at": "2026-01-13T00:00:00Z"
+  },
+  "pipeline": {
+    "name": "test-pipeline",
+    "description": "Fixture pipeline for v3 compile tests"
+  },
+  "dependencies": {
+    "jq": true,
+    "yq": true,
+    "tmux": true,
+    "bd": false
+  },
+  "nodes": [
+    {
+      "path": "0",
+      "id": "alpha",
+      "kind": "stage",
+      "termination": {
+        "type": "fixed",
+        "max": 2
+      },
+      "inputs": {},
+      "ref": "test-stage",
+      "description": "Fixture stage for v3 engine tests",
+      "provider": {
+        "type": "codex",
+        "model": "gpt-5.2-codex"
+      },
+      "prompt_path": "scripts/tests/fixtures/stages/test-stage/prompt.md"
+    }
+  ]
+}

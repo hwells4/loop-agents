@@ -4,7 +4,8 @@
 #
 # v3 Variables (preferred):
 #   ${CTX}                        - Path to context.json (full context)
-#   ${STATUS}                     - Path to write status.json
+#   ${STATUS}                     - Path to write status.json (deprecated)
+#   ${RESULT}                     - Path to write result.json
 #   ${PROGRESS}                   - Path to progress file
 #   ${OUTPUT}                     - Path to write output
 #
@@ -41,9 +42,11 @@ resolve_prompt() {
     local ctx_progress=$(echo "$ctx_json" | jq -r '.paths.progress // ""')
     local ctx_output=$(echo "$ctx_json" | jq -r '.paths.output // ""')
     local ctx_status=$(echo "$ctx_json" | jq -r '.paths.status // ""')
+    local ctx_result=$(echo "$ctx_json" | jq -r '.paths.result // ""')
 
     resolved="${resolved//\$\{CTX\}/$context_file}"
     resolved="${resolved//\$\{STATUS\}/$ctx_status}"
+    resolved="${resolved//\$\{RESULT\}/$ctx_result}"
     resolved="${resolved//\$\{PROGRESS\}/$ctx_progress}"
     resolved="${resolved//\$\{OUTPUT\}/$ctx_output}"
 
@@ -74,6 +77,7 @@ resolve_prompt() {
   local stage_idx=$(jq -r '.stage_idx // "0"' <<< "$vars_json")
   local context_file=$(jq -r '.context_file // empty' <<< "$vars_json")
   local status_file=$(jq -r '.status_file // empty' <<< "$vars_json")
+  local result_file=$(jq -r '.result_file // empty' <<< "$vars_json")
   local context=$(jq -r '.context // empty' <<< "$vars_json")
 
   # v3 variables (if context_file provided)
@@ -82,6 +86,9 @@ resolve_prompt() {
   fi
   if [ -n "$status_file" ]; then
     resolved="${resolved//\$\{STATUS\}/$status_file}"
+  fi
+  if [ -n "$result_file" ]; then
+    resolved="${resolved//\$\{RESULT\}/$result_file}"
   fi
 
   # Standard substitutions (bash parameter expansion for multi-line safety)

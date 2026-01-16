@@ -34,7 +34,7 @@ test_context_schema_stable() {
 
   local path_keys
   path_keys=$(jq -r '.paths | keys_unsorted | sort | join(",")' "$context_file")
-  assert_eq "output,progress,session_dir,stage_dir,status" \
+  assert_eq "output,progress,result,session_dir,stage_dir,status" \
     "$path_keys" "paths map retains stable schema"
 
   local input_keys
@@ -76,10 +76,19 @@ test_from_initial_entries_are_absolute_paths() {
   local canonical_dir
   canonical_dir=$(cd "$test_dir" && pwd)
 
-  # Create a seed plan and simulate resolved initial inputs manifest
+  # Create a seed plan and simulate resolved initial inputs in plan.json
   local plan_file="$canonical_dir/seed-plan.md"
   echo "# bootstrap" > "$plan_file"
-  echo '["'"$plan_file"'"]' > "$test_dir/initial-inputs.json"
+  cat > "$test_dir/plan.json" << EOF
+{
+  "version": 1,
+  "session": {
+    "name": "contract-session",
+    "inputs": ["$plan_file"]
+  },
+  "nodes": []
+}
+EOF
 
   local context_file
   context_file=$(generate_context "contract-session" "1" "$stage_config" "$test_dir")

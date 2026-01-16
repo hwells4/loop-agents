@@ -27,11 +27,13 @@ test_plateau_reads_from_status_file() {
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should complete: 2 consecutive stops in history (iterations 2 and 3)
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "0" "$result" "Plateau completes when consensus reached via status.json"
 
   rm -rf "$test_dir"
@@ -51,11 +53,13 @@ test_plateau_ignores_output_parameter() {
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Even though we pass output text, it should be ignored
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Plateau does not complete when decision is continue"
 
   rm -rf "$test_dir"
@@ -74,10 +78,12 @@ test_plateau_requires_min_iterations() {
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Plateau requires min_iterations before checking"
 
   rm -rf "$test_dir"
@@ -100,11 +106,13 @@ test_plateau_requires_consensus() {
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Should NOT complete: only 1 stop in history, need 2 consecutive
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Plateau requires consensus (2 consecutive stops)"
 
   rm -rf "$test_dir"
@@ -120,11 +128,13 @@ test_plateau_handles_missing_status_file() {
 
   export MIN_ITERATIONS=2
   export CONSENSUS=2
+  export PLATEAU_TEST_MODE=1  # Bypass judge for unit tests
 
   # Missing status file should default to continue
   check_completion "test" "$state_file" "/nonexistent/status.json" >/dev/null 2>&1
   local result=$?
 
+  unset PLATEAU_TEST_MODE
   assert_eq "1" "$result" "Missing status file defaults to continue (no completion)"
 
   rm -rf "$test_dir"
@@ -337,6 +347,8 @@ test_fixed_n_accepts_status_file_param() {
 
   assert_eq "0" "$result" "Fixed-N completes at target iteration"
 
+  unset FIXED_ITERATIONS
+  unset MAX_ITERATIONS
   rm -rf "$test_dir"
 }
 
@@ -359,6 +371,8 @@ test_fixed_n_respects_status_stop() {
 
   assert_eq "0" "$result" "Fixed-N respects status decision, stops early"
 
+  unset FIXED_ITERATIONS
+  unset MAX_ITERATIONS
   rm -rf "$test_dir"
 }
 

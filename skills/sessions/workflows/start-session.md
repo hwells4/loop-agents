@@ -126,7 +126,63 @@ bd ready --label="pipeline/${session}" 2>/dev/null | head -3
 # If empty, warn user there are no beads to work on
 ```
 
-## Step 5: Start the Session
+## Step 5: Show Pre-Launch Summary and Confirm
+
+Before starting, show exactly what will run and ask for confirmation:
+
+**Build the summary:**
+```bash
+# For single-stage
+echo "Stage: ${stage}"
+echo "Session: ${session}"
+echo "Max iterations: ${max_iterations}"
+echo "Provider: ${provider:-claude} (${model:-opus})"
+echo "Termination: $(cat scripts/stages/${stage}/stage.yaml | grep -A2 'termination:' | grep 'type:' | awk '{print $2}')"
+
+# For ralph, show beads
+if [ "${stage}" = "ralph" ]; then
+  echo "Beads ready: $(bd ready --label=pipeline/${session} 2>/dev/null | wc -l | xargs)"
+fi
+```
+
+**Display summary and ask for confirmation:**
+
+```
+## Pre-Launch Summary
+
+Type: {stage/pipeline}
+Session: {session}
+Provider: {provider} ({model})
+Termination: {type} ({max_iterations} max)
+
+{For ralph: Beads found: N ready with label 'pipeline/{session}'}
+{For pipeline: Stages: stage1 → stage2 → ...}
+
+Flags: {--resume, --force, --context, etc. if any}
+```
+
+Use AskUserQuestion to confirm:
+
+```json
+{
+  "questions": [{
+    "question": "Ready to launch this session?",
+    "header": "Confirm",
+    "options": [
+      {"label": "Launch", "description": "Start the session now"},
+      {"label": "Edit Config", "description": "Change provider, model, iterations, or add context"},
+      {"label": "Cancel", "description": "Don't start, return to conversation"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+**If "Launch":** Proceed to Step 6
+**If "Edit Config":** Ask what to change and update configuration
+**If "Cancel":** Abort with confirmation message
+
+## Step 6: Start the Session
 
 **Single-stage (work, improve-plan, etc.):**
 ```bash
@@ -149,7 +205,7 @@ tmux new-session -d -s "pipeline-${session}" -c "$(pwd)" \
 ./scripts/run.sh ${stage} ${session} ${max} --force
 ```
 
-## Step 6: Verify Startup
+## Step 7: Verify Startup
 
 ```bash
 # Wait briefly for startup
@@ -172,7 +228,7 @@ else
 fi
 ```
 
-## Step 7: Provide Next Actions
+## Step 8: Provide Next Actions
 
 After successful start, show:
 
@@ -199,6 +255,8 @@ Start session workflow is complete when:
 - [ ] Session name validated (lowercase, hyphens only)
 - [ ] Conflicts detected and resolved
 - [ ] Prerequisites validated (stage/pipeline exists)
+- [ ] Pre-launch summary shown to user
+- [ ] User confirmed launch via AskUserQuestion
 - [ ] Session started in tmux
 - [ ] Startup verified (tmux session exists)
 - [ ] Clear next actions provided to user

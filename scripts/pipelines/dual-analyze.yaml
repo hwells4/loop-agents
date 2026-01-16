@@ -1,8 +1,8 @@
 name: dual-analyze
 description: Parallel analysis with Claude Opus and Codex
 
-stages:
-  - name: analyze
+nodes:
+  - id: analyze
     parallel:
       providers: [claude, codex]
       stages:

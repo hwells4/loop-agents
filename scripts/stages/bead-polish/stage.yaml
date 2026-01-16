@@ -1,0 +1,12 @@
+# Bead Polish Stage - Final validation pass on beads
+# Iterative polish with judgment-based termination
+
+name: bead-polish
+description: Final polish pass - validate beads make sense and include comprehensive tests
+
+termination:
+  type: judgment
+  min_iterations: 3
+  consensus: 2
+
+delay: 3

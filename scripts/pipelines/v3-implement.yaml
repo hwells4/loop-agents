@@ -1,0 +1,22 @@
+name: v3-implement
+description: Create tasks from plan, refine them, then execute with Codex
+
+nodes:
+  - id: create
+    stage: create-tasks
+    runs: 1
+
+  - id: refine
+    stage: refine-tasks
+    runs: 4
+    inputs:
+      from: create
+      select: latest
+
+  - id: work
+    stage: ralph
+    runs: 25
+    provider: codex
+    inputs:
+      from: refine
+      select: latest

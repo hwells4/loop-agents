@@ -1,0 +1,13 @@
+# Codex Work Stage - Fire-and-forget implementation agent
+# Spins up Codex to implement work, run tests, and commit
+
+name: codex-work
+description: Implement work using Codex - accepts free-form instructions or beads
+
+provider: codex
+model: gpt-5.2-codex
+
+termination:
+  type: fixed
+
+delay: 5

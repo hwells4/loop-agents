@@ -39,7 +39,7 @@ Work through up to 3 items per iteration. After each item, check your context be
 │ 4. Mark it ✓ COMPLETED in progress      │
 │ 5. Check: context still manageable?     │
 │    YES → pick another item (up to 3)    │
-│    NO  → stop, write status, next iter  │
+│    NO  → stop, write result, next iter  │
 └─────────────────────────────────────────┘
 ```
 
@@ -82,26 +82,28 @@ After completing each item, append to ${PROGRESS}:
   - What was changed: [brief description]
 ```
 
-## Decision Logic
+## Write Result
 
-After making your changes, write status to `${STATUS}`:
+After making your changes, write result to `${RESULT}` (set `signals.plateau_suspected` true when all audit items are complete and no gaps remain):
 
 ```json
 {
-  "decision": "continue",
-  "reason": "X items remain in audit, or gaps still exist",
   "summary": "Updated [files]. Remaining: [what's left]",
   "work": {
     "items_completed": ["file1.md", "file2.md"],
     "files_touched": ["path/to/file1.md", "path/to/file2.md"]
   },
-  "errors": []
+  "artifacts": {
+    "outputs": [],
+    "paths": []
+  },
+  "signals": {
+    "plateau_suspected": false,
+    "risk": "low",
+    "notes": ""
+  }
 }
 ```
-
-**Decision guide:**
-- `"continue"` - More audit items remain unclaimed, OR you found additional gaps
-- `"stop"` - All audit items completed AND no remaining gaps found after scanning
 
 ## Important
 
