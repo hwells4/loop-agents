@@ -295,13 +295,48 @@ build_from_parallel_inputs() {
     providers_filter=$(echo "$from_parallel_config" | jq -c '.providers // "all"')
   fi
 
-  # Find manifest path from parallel_blocks config
+  # Find manifest path - check multiple sources
   local manifest_path=""
+
+  # 1. Check explicit parallel_blocks config (for sequential stages after parallel)
   if [ -n "$block_name" ]; then
     manifest_path=$(echo "$stage_config" | jq -r ".parallel_blocks[\"$block_name\"].manifest_path // \"\"")
   else
-    # Try to find the most recent parallel block
     manifest_path=$(echo "$stage_config" | jq -r '.parallel_blocks | to_entries | .[0].value.manifest_path // ""')
+  fi
+
+  # 2. If not found and we're in parallel_scope, look for parallel blocks in pipeline_root
+  if [ -z "$manifest_path" ] || [ ! -f "$manifest_path" ]; then
+    local pipeline_root=$(echo "$stage_config" | jq -r '.parallel_scope.pipeline_root // ""')
+    if [ -n "$pipeline_root" ] && [ -d "$pipeline_root" ]; then
+      # Find parallel block directories and their manifests
+      # Look for parallel-*/ directories with manifest.json
+      for block_dir in $(ls -d "$pipeline_root"/parallel-* 2>/dev/null | sort); do
+        local potential_manifest="$block_dir/manifest.json"
+        if [ -f "$potential_manifest" ]; then
+          # Check if this block contains the stage we're looking for
+          local has_stage=$(jq -r --arg s "$stage_name" '.providers | to_entries[0].value | has($s)' "$potential_manifest" 2>/dev/null)
+          if [ "$has_stage" = "true" ]; then
+            manifest_path="$potential_manifest"
+            break
+          fi
+        fi
+      done
+    fi
+  fi
+
+  # 3. Last resort: look in run_dir for parallel blocks
+  if [ -z "$manifest_path" ] || [ ! -f "$manifest_path" ]; then
+    for block_dir in $(ls -d "$run_dir"/parallel-* 2>/dev/null | sort); do
+      local potential_manifest="$block_dir/manifest.json"
+      if [ -f "$potential_manifest" ]; then
+        local has_stage=$(jq -r --arg s "$stage_name" '.providers | to_entries[0].value | has($s)' "$potential_manifest" 2>/dev/null)
+        if [ "$has_stage" = "true" ]; then
+          manifest_path="$potential_manifest"
+          break
+        fi
+      fi
+    done
   fi
 
   if [ -z "$manifest_path" ] || [ ! -f "$manifest_path" ]; then

@@ -1,0 +1,8 @@
+name: evaluate-ideas
+description: Score and evaluate ideas from another model (0-1000 scale)
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 0
