@@ -1,0 +1,11 @@
+# Respond to Critique Stage - Address feedback from the other model
+# You receive: your original work + the other model's critique of it
+
+name: respond-critique
+description: Respond to the other model's critique by defending, refining, or conceding
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

@@ -1,0 +1,86 @@
+name: plan-debate
+description: Two-model debate for plan refinement—recommend, critique, respond, implement
+
+# Pipeline Flow:
+# 1. RECOMMEND: Both providers read the plan and write recommendations (no edits)
+# 2. CRITIQUE: Each critiques the OTHER's recommendations (with plan context)
+# 3. RESPOND: Each responds to critique of their own recommendations
+# 4. IMPLEMENT: Final agent synthesizes debate and actually edits the plan
+
+nodes:
+  # Block 1: Both analyze the plan and write recommendations
+  - id: recommend
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+      stages:
+        - id: recs
+          stage: recommend-improvements
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 2: Cross-critique (each evaluates the OTHER's recommendations)
+  # Each provider receives: original plan (from_initial) + other's recommendations
+  - id: critique
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+          inputs:
+            from_parallel:
+              stage: recs
+              providers: [codex]  # Claude critiques Codex's recommendations
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+          inputs:
+            from_parallel:
+              stage: recs
+              providers: [claude]  # Codex critiques Claude's recommendations
+      stages:
+        - id: crit
+          stage: critique-plan
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 3: Respond to critique
+  # Each provider receives: own recommendations + other's critique (+ plan from initial)
+  - id: respond
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+          inputs:
+            from_parallel:
+              - stage: recs
+                providers: [claude]  # My recommendations
+              - stage: crit
+                providers: [codex]   # Codex's critique of my recommendations
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+          inputs:
+            from_parallel:
+              - stage: recs
+                providers: [codex]   # My recommendations
+              - stage: crit
+                providers: [claude]  # Claude's critique of my recommendations
+      stages:
+        - id: resp
+          stage: respond-critique
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 4: Final implementation (sequential, gets everything)
+  - id: implement
+    stage: implement-changes
+    inputs:
+      from_parallel:
+        stage: resp  # Gets both providers' final responses (which reference recs + critiques)
+    termination:
+      type: fixed
+      iterations: 1

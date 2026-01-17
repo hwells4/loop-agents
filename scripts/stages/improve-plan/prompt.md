@@ -1,122 +1,79 @@
-# Plan Improver
+# Plan Refinement
 
 Read context from: ${CTX}
 Progress file: ${PROGRESS}
+Status output: ${STATUS}
 Iteration: ${ITERATION}
 
 ${CONTEXT}
 
-## Your Task
+---
 
-You are a senior architect reviewing and improving a plan. Make it better.
+You are refining a plan to make it genuinely excellent. The kind of plan that if you handed it to a senior engineer, they could implement it without asking clarifying questions. Clarity, completeness, and implementability are your north stars.
 
-### Step 1: Load Context
+This is not a checklist task. You have full latitude to think deeply, follow threads that interest you, and use your intelligence as you see fit. Trust your instincts.
 
-Read the progress file:
+## Load the Plan
+
 ```bash
 cat ${PROGRESS}
-```
 
-**Check for input files from context.json:**
-```bash
-# Read initial inputs (from --input CLI flag)
 jq -r '.inputs.from_initial[]' ${CTX} 2>/dev/null | while read file; do
-  echo "Reading input: $file"
-  cat "$file"
+  echo "=== $file ===" && cat "$file"
 done
 
-# Read previous stage outputs (if this is part of a multi-stage pipeline)
-jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
-  echo "Reading from previous stage: $file"
-  cat "$file"
+jq -r '.inputs.from_stage | to_entries[]? | .value[]?' ${CTX} 2>/dev/null | while read file; do
+  echo "=== $file ===" && cat "$file"
 done
 
-# Read parallel block outputs (if this follows a parallel stage)
-jq -r '.inputs.from_parallel | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
-  echo "Reading from parallel block: $file"
-  cat "$file"
+jq -r '.inputs.from_parallel | to_entries[]? | .value[]?' ${CTX} 2>/dev/null | while read file; do
+  echo "=== $file ===" && cat "$file"
 done
 ```
 
-If no inputs were provided, find plan files in the repo:
-```bash
-ls -la docs/*.md 2>/dev/null
-ls -la *.md 2>/dev/null | grep -i plan
-```
+## First Pass: Review
 
-Also check for ideas to incorporate:
-```bash
-cat docs/ideas.md 2>/dev/null || echo "No ideas file"
-```
+Read the entire plan carefully. As you read, ask yourself:
 
-### Step 2: Review Critically
+- **What assumptions is this plan making that might be wrong?**
+- **What would confuse an engineer trying to implement this?**
+- **What's the weakest part of this plan?**
+- **What abstraction or approach are we missing that would make this simpler or more elegant?**
+- **What hidden opportunities exist? Places where a different paradigm would make everything click?**
 
-Read the plan thoroughly. Look for:
+Follow threads that interest you. Go deep where depth is warranted.
 
-**Completeness:**
-- [ ] All user flows covered?
-- [ ] Edge cases handled?
-- [ ] Error scenarios addressed?
-- [ ] Security considerations noted?
+## Second Pass: Edit As You Go
 
-**Clarity:**
-- [ ] Ambiguous language?
-- [ ] Missing details?
-- [ ] Inconsistencies?
-- [ ] Undefined terms?
+Now go through the plan again and **make small, targeted edits as you find things**. Don't save everything up for one big edit at the end.
 
-**Feasibility:**
-- [ ] Realistic scope?
-- [ ] Dependencies identified?
-- [ ] Risks acknowledged?
-- [ ] Testing strategy?
+- Find an issue → fix it immediately with a small edit
+- Find a gap → add a section right then
+- Find ambiguity → clarify it on the spot
 
-**Architecture:**
-- [ ] Clean boundaries?
-- [ ] Appropriate abstractions?
-- [ ] Scalability considered?
-- [ ] Maintainability?
+Each edit should be focused and surgical. This keeps edits reliable and lets you build improvements incrementally.
 
-### Step 3: Make Improvements
+**Append and expand.** The goal right now is to strengthen the plan—add sections, expand thin areas, clarify ambiguities, fill gaps.
 
-Edit the plan file directly. For each change:
-- Clarify ambiguous sections
-- Add missing details
-- Remove unnecessary complexity
-- Fix inconsistencies
-- Incorporate relevant ideas from ideas.md
+Be thoughtful about deletion. If something should be removed, think carefully about why. Removal should be rare and deliberate.
 
-### Step 4: Update Progress
+## Write Status
 
-Append to progress file:
-```
-## Iteration ${ITERATION} - Plan Improvements
-- [What you changed]
-- [Why you changed it]
-```
-
-### Step 5: Write Result
-
-After completing your work, write your result to `${RESULT}` (set `signals.plateau_suspected` true when the plan is ready to implement):
+When you've made your improvements:
 
 ```json
 {
-  "summary": "One paragraph describing what you improved this iteration",
+  "decision": "continue",
+  "reason": "What still needs attention",
+  "summary": "What you improved and why",
   "work": {
     "items_completed": [],
-    "files_touched": ["docs/plan.md"]
+    "files_touched": []
   },
-  "artifacts": {
-    "outputs": [],
-    "paths": []
-  },
-  "signals": {
-    "plateau_suspected": false,
-    "risk": "low",
-    "notes": ""
-  }
+  "errors": []
 }
 ```
 
-Be honest. Don't stop early just to finish faster. Don't continue just to seem thorough.
-The goal is a plan that's *ready to implement*, not *perfect*.
+Write to `${STATUS}`. Set `"decision": "stop"` only when the plan is genuinely ready for implementation and further changes would be cosmetic.
+
+Use ultrathink.

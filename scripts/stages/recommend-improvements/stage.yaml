@@ -1,0 +1,11 @@
+# Recommend Improvements Stage - Propose changes without editing the plan
+# For parallel execution where multiple models analyze the same plan
+
+name: recommend-improvements
+description: Analyze a plan and write recommended improvements with rationale (no inline edits)
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

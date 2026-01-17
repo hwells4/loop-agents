@@ -1,0 +1,11 @@
+# Implement Changes Stage - Final synthesizer that edits the plan
+# Takes all debate outputs and actually makes the changes
+
+name: implement-changes
+description: Synthesize debate outputs and implement agreed-upon changes to the plan
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

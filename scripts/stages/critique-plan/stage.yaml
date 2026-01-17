@@ -1,0 +1,11 @@
+# Critique Plan Stage - Critically evaluate another model's plan refinement
+# Cross-evaluation: You receive the OTHER model's work, not your own
+
+name: critique-plan
+description: Critically evaluate and score a plan refinement from another model
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2
