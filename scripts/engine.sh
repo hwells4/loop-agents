@@ -340,6 +340,9 @@ run_stage() {
     export MOCK_RESULT_FILE="$(dirname "$context_file")/result.json"
     export MOCK_ITERATION="$i"
 
+    # Export status file path for Codex watchdog (enables early termination on completion)
+    export CODEX_STATUS_FILE="$(dirname "$context_file")/status.json"
+
     # Execute agent
     set +e
     local output=$(execute_agent "$STAGE_PROVIDER" "$resolved_prompt" "$STAGE_MODEL" | tee /dev/stderr)
@@ -1016,6 +1019,9 @@ run_pipeline() {
       export MOCK_STATUS_FILE="$status_file"
       export MOCK_RESULT_FILE="$result_file"
       export MOCK_ITERATION="$iteration"
+
+      # Export status file path for Codex watchdog (enables early termination on completion)
+      export CODEX_STATUS_FILE="$status_file"
 
       # Execute agent
       set +e

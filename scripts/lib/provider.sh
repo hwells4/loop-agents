@@ -113,17 +113,147 @@ _get_timeout_cmd() {
   fi
 }
 
+# Check if a status file indicates work completion
+# Usage: _status_indicates_completion "$status_file"
+# Returns: 0 if work complete (continue/stop), 1 if not ready or error
+_status_indicates_completion() {
+  local status_file=$1
+
+  [ -f "$status_file" ] || return 1
+
+  # Check if valid JSON
+  jq -e '.' "$status_file" &>/dev/null || return 1
+
+  # Check decision field
+  local decision
+  decision=$(jq -r '.decision // "missing"' "$status_file" 2>/dev/null)
+
+  case "$decision" in
+    continue|stop) return 0 ;;  # Work completed successfully
+    *) return 1 ;;              # Not ready, error, or invalid
+  esac
+}
+
+# Watchdog runner for Codex - monitors for completion and kills process when done
+# Usage: _run_codex_with_watchdog "$prompt" "$model" "$reasoning" "$output_file" "$timeout" "$status_file"
+# Environment:
+#   CODEX_POLL_INTERVAL - seconds between checks (default: 15)
+#   CODEX_GRACE_PERIOD - seconds to wait after completion before kill (default: 5)
+_run_codex_with_watchdog() {
+  local prompt=$1
+  local model=$2
+  local reasoning=$3
+  local output_file=$4
+  local timeout_seconds=$5
+  local status_file=$6
+  local poll_interval=${CODEX_POLL_INTERVAL:-15}
+  local grace_period=${CODEX_GRACE_PERIOD:-5}
+
+  local temp_output
+  temp_output=$(mktemp)
+  trap "rm -f '$temp_output'" EXIT
+
+  # Start Codex in background
+  printf '%s' "$prompt" | codex exec \
+    --dangerously-bypass-approvals-and-sandbox \
+    -m "$model" \
+    -c "model_reasoning_effort=\"$reasoning\"" \
+    >"$temp_output" 2>&1 &
+  local codex_pid=$!
+
+  echo "Codex started (PID: $codex_pid), watching for completion..." >&2
+
+  local elapsed=0
+  local work_completed=false
+  local codex_exited=false
+  local codex_exit_code=0
+
+  # Poll until timeout, completion, or process exit
+  while [ $elapsed -lt $timeout_seconds ]; do
+    # Check if Codex exited on its own
+    if ! kill -0 "$codex_pid" 2>/dev/null; then
+      wait "$codex_pid" 2>/dev/null
+      codex_exit_code=$?
+      codex_exited=true
+      echo "Codex exited on its own (code: $codex_exit_code)" >&2
+      break
+    fi
+
+    # Check if status file indicates completion
+    if [ -n "$status_file" ] && _status_indicates_completion "$status_file"; then
+      work_completed=true
+      local decision
+      decision=$(jq -r '.decision' "$status_file" 2>/dev/null)
+      echo "✓ Work completed (decision: $decision) - terminating Codex in ${grace_period}s..." >&2
+
+      # Brief grace period for any final writes
+      sleep "$grace_period"
+
+      # Kill the process tree
+      if kill -0 "$codex_pid" 2>/dev/null; then
+        kill -TERM "$codex_pid" 2>/dev/null || true
+        sleep 1
+        kill -KILL "$codex_pid" 2>/dev/null || true
+        wait "$codex_pid" 2>/dev/null || true
+      fi
+      break
+    fi
+
+    sleep "$poll_interval"
+    elapsed=$((elapsed + poll_interval))
+  done
+
+  # Handle timeout
+  if [ $elapsed -ge $timeout_seconds ] && [ "$work_completed" = false ] && [ "$codex_exited" = false ]; then
+    echo "Warning: Codex timed out after ${timeout_seconds}s" >&2
+    kill -TERM "$codex_pid" 2>/dev/null || true
+    sleep 2
+    kill -KILL "$codex_pid" 2>/dev/null || true
+    wait "$codex_pid" 2>/dev/null || true
+
+    # Copy output before returning
+    [ -n "$output_file" ] && cp "$temp_output" "$output_file"
+    cat "$temp_output"
+    return 124
+  fi
+
+  # Copy output
+  [ -n "$output_file" ] && cp "$temp_output" "$output_file"
+  cat "$temp_output"
+
+  # Determine exit code
+  if [ "$work_completed" = true ]; then
+    # Work completed - success regardless of how Codex exited
+    return 0
+  elif [ "$codex_exited" = true ]; then
+    # Codex exited on its own - check if work was completed despite exit code
+    if [ -n "$status_file" ] && _status_indicates_completion "$status_file"; then
+      echo "Notice: Work completed despite exit code $codex_exit_code" >&2
+      return 0
+    fi
+    return $codex_exit_code
+  fi
+
+  return 0
+}
+
 # Execute Codex with a prompt
 # Usage: execute_codex "$prompt" "$model" "$output_file"
 # Model: gpt-5.2-codex (default), or model:reasoning like gpt-5.2-codex:xhigh
 # Reasoning effort: xhigh, high, medium, low, minimal (default: high)
 # Environment:
 #   CODEX_TIMEOUT - timeout in seconds (default: 900 = 15 minutes)
+#   CODEX_STATUS_FILE - path to status.json for watchdog mode (enables early termination)
+#   CODEX_POLL_INTERVAL - seconds between completion checks (default: 2)
+#   CODEX_GRACE_PERIOD - seconds after completion before kill (default: 3)
+#   CODEX_WATCHDOG - set to "false" to disable watchdog (default: true when status file provided)
 execute_codex() {
   local prompt=$1
   local model_arg=${2:-"${CODEX_MODEL:-gpt-5.2-codex}"}
   local output_file=$3
   local timeout_seconds=${CODEX_TIMEOUT:-900}
+  local status_file=${CODEX_STATUS_FILE:-""}
+  local watchdog_enabled=${CODEX_WATCHDOG:-"true"}
 
   # Parse model:reasoning format (e.g., gpt-5.2-codex:xhigh)
   local model="${model_arg%%:*}"
@@ -145,7 +275,14 @@ execute_codex() {
 IMPORTANT: After completing this task and writing any required output files, EXIT IMMEDIATELY.
 Do NOT wait for follow-up. Do NOT ask for confirmation. The pipeline handles iteration control."
 
-  # Determine timeout command (timeout on Linux, gtimeout on macOS with coreutils)
+  # Use watchdog mode when status file is provided (allows early termination on completion)
+  if [ -n "$status_file" ] && [ "$watchdog_enabled" = "true" ]; then
+    echo "Using watchdog mode (status_file: $status_file)" >&2
+    _run_codex_with_watchdog "$augmented_prompt" "$model" "$reasoning" "$output_file" "$timeout_seconds" "$status_file"
+    return $?
+  fi
+
+  # Fallback: traditional timeout-based execution
   local timeout_cmd
   timeout_cmd=$(_get_timeout_cmd)
 
@@ -200,6 +337,12 @@ Do NOT wait for follow-up. Do NOT ask for confirmation. The pipeline handles ite
     echo "Warning: Codex process timed out after ${timeout_seconds}s (SIGTERM)" >&2
   elif [ $exit_code -eq 137 ]; then
     echo "Warning: Codex process killed after timeout grace period (SIGKILL)" >&2
+  fi
+
+  # Final salvage check: if work completed despite bad exit, return success
+  if [ $exit_code -ne 0 ] && [ -n "$status_file" ] && _status_indicates_completion "$status_file"; then
+    echo "Notice: Work completed despite exit code $exit_code - treating as success" >&2
+    return 0
   fi
 
   return $exit_code

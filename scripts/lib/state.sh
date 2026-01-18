@@ -681,6 +681,15 @@ get_session_status() {
     return
   fi
 
+  # Status is explicitly "failed" = previous run failed
+  if [ "$state_status" = "failed" ]; then
+    local error_msg=$(jq -r '.error.message // "unknown error"' "$state_file" 2>/dev/null)
+    local failed_at=$(jq -r '.failed_at // "unknown"' "$state_file" 2>/dev/null)
+    SESSION_STATUS_DETAILS="Failed at $failed_at: $error_msg"
+    echo "failed"
+    return
+  fi
+
   SESSION_STATUS_DETAILS="Unknown state"
   echo "none"
 }
