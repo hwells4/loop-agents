@@ -334,6 +334,9 @@ run_parallel_provider() {
       export MOCK_ITERATION="$iter"
       export MOCK_PROVIDER="$provider"
 
+      # Export status file path for Codex watchdog (enables early termination on completion)
+      export CODEX_STATUS_FILE="$status_file"
+
       # Execute agent
       local output=""
       local exit_code=0

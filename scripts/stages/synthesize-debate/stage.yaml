@@ -1,0 +1,11 @@
+# Synthesize Debate Stage - Create V2 plan from cross-evaluation debate
+# Orchestrator that takes all outputs and creates the best hybrid plan
+
+name: synthesize-debate
+description: Synthesize all debate outputs into a superior V2 plan
+
+termination:
+  type: fixed
+  iterations: 1
+
+delay: 2

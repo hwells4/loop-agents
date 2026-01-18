@@ -1,0 +1,141 @@
+name: plan-to-tasks
+description: Full planning flow - debate, robot-mode, elegance, then create and refine tasks
+
+# Pipeline Flow:
+# 1-4. PLAN-DEBATE: Two-model recommend → critique → respond → implement
+# 5.   ROBOT-MODE: Agent-usability analysis (2 iterations)
+# 6.   ELEGANCE: Review plan for simplicity (3-5 iterations, judgment)
+# 7.   CREATE-TASKS: Break plan into executable beads (1 iteration)
+# 8.   REFINE-TASKS: Polish tasks until ready (judgment)
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: Plan Debate (nodes 1-4)
+  # ═══════════════════════════════════════════════════════════════
+
+  # Block 1: Both analyze the plan and write recommendations
+  - id: recommend
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+      stages:
+        - id: recs
+          stage: recommend-improvements
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 2: Cross-critique (each evaluates the OTHER's recommendations)
+  - id: critique
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+          inputs:
+            from_parallel:
+              stage: recs
+              providers: [codex]
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+          inputs:
+            from_parallel:
+              stage: recs
+              providers: [claude]
+      stages:
+        - id: crit
+          stage: critique-plan
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 3: Respond to critique
+  - id: respond
+    parallel:
+      providers:
+        - name: claude
+          model: opus
+          inputs:
+            from_parallel:
+              - stage: recs
+                providers: [claude]
+              - stage: crit
+                providers: [codex]
+        - name: codex
+          model: gpt-5.2-codex:xhigh
+          inputs:
+            from_parallel:
+              - stage: recs
+                providers: [codex]
+              - stage: crit
+                providers: [claude]
+      stages:
+        - id: resp
+          stage: respond-critique
+          termination:
+            type: fixed
+            iterations: 1
+
+  # Block 4: Final implementation (synthesize debate into plan edits)
+  - id: implement
+    stage: implement-changes
+    inputs:
+      from_parallel:
+        stage: resp
+    termination:
+      type: fixed
+      iterations: 1
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: Robot Mode - Agent Usability (node 5)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: robot-mode
+    stage: robot-mode
+    inputs:
+      from: implement
+    termination:
+      type: fixed
+      iterations: 2
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: Elegance Review (node 6)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: elegance
+    stage: elegance
+    inputs:
+      from: robot-mode
+    termination:
+      type: judgment
+      min_iterations: 3
+      consensus: 2
+      max: 5
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: Create Tasks (node 7)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: create-tasks
+    stage: create-tasks
+    inputs:
+      from: elegance
+    termination:
+      type: fixed
+      iterations: 1
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: Refine Tasks (node 8)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: refine-tasks
+    stage: refine-tasks
+    inputs:
+      from: create-tasks
+    termination:
+      type: judgment
+      min_iterations: 2
+      consensus: 2
+      max: 5
