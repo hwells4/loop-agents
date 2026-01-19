@@ -106,7 +106,29 @@ A Go implementation enables:
 - [ ] JSON output stripped from markdown fences if present (`json...`).
 - [ ] Judge output normalized to `{stop: bool, reason: string, confidence: number}`.
 - [ ] Retry logic: up to 2 attempts on invocation failure.
-- [ ] Failure tracking: count consecutive judge failures per node via events; skip judge after 3 failures (return `{stop: false, reason: "judge_unreliable"}`).
+- [ ] Failure tracking: count consecutive judge failures per stage run via state; skip judge after 3 failures (return `{stop: false, reason: "judge_unreliable"}`).
+
+**Judge Failure Counter Scope:**
+- Track `judge_failures` counter per stage run (not per session)
+- Counter resets to 0 on successful judge decision
+- Judge errors do NOT count toward consensus (neither stop nor continue); they increment failure counter and force `decision: continue`
+- If `judge_failures` exceeds threshold (default: 3), fail the stage with `reason: judge_error`
+- Persist `judge_failures` in `state.json` under `stages[N].judge_failures` for resume
+- When resuming, restore counter from state
+
+```json
+// In state.json
+{
+  "stages": [
+    {
+      "name": "improve-plan",
+      "index": 0,
+      "iterations": 5,
+      "judge_failures": 0  // Tracks consecutive failures
+    }
+  ]
+}
+```
 - [ ] Emit `judge_start` and `judge_complete` events with provider, model, and result.
 - [ ] Write judge output to `iterations/NNN/judge.json` for debugging.
 
@@ -141,6 +163,31 @@ guardrails:
 - [ ] Given large sessions, when appending events, then write cost is O(1) per event.
 - [ ] Event types supported: `session_start`, `session_complete`, `node_start`, `node_complete`, `iteration_start`, `iteration_complete`, `worker_complete`, `parallel_provider_start`, `parallel_provider_complete`, `error`.
 - [ ] Each event includes: `type`, `timestamp`, `session`, `cursor` (node_path, node_run, iteration, optional provider), `data`.
+
+**Event Buffer Configuration:**
+
+The event writer uses in-memory buffering with configurable limits:
+
+| Setting | Default | Env Var |
+|---------|---------|---------|
+| Buffer size (events) | 100 | `AGENT_PIPELINES_EVENT_BUFFER` |
+| Flush interval | 1s | `AGENT_PIPELINES_EVENT_FLUSH_MS` |
+| Max event size | 64KB | - |
+
+**Behavior:**
+- Events accumulate in buffer until: buffer full, flush interval elapsed, or explicit `Sync()` call
+- On buffer overflow: flush to disk immediately (blocking)
+- Never silently drop events; if disk write fails, retry with backoff
+- If persistent failure (disk full, permissions), fail session with `state_corrupt` error
+
+**Observability:**
+- Track `events_buffered` and `events_flushed` counters for debugging
+- If flush takes >100ms, log warning
+- In status output, show event buffer health
+
+**Test Requirement:**
+- [ ] Large-log test: Generate 10,000 events rapidly, verify all persisted without loss
+- [ ] Buffer overflow test: Fill buffer faster than flush, verify no drops
 
 #### Feature 2.2: Parallel Block Execution
 **Description:** Run parallel providers in goroutines with isolated state directories and a deterministic completion manifest (see `scripts/lib/parallel.sh`).
@@ -181,12 +228,37 @@ parallel:
 - **Asymmetric routing:** Different providers receive different upstream outputs
 - **Selective history:** One provider gets full history, another gets only latest
 
-**from_parallel Scope Rule (IMPORTANT):**
-- `inputs.from_parallel` only resolves outputs from *completed* parallel blocks via `manifest.json`
-- Providers in the same parallel block CANNOT depend on each other's outputs in the same iteration
-- Cross-evaluation must be modeled as separate stages/blocks: parallel generate → parallel evaluate
-- Validation error if `from_parallel` references the current parallel block
-- Exception: Within a block, a provider's *second stage* can reference another provider's *first stage* if execution order guarantees completion
+**from_parallel Scope Rules (IMPORTANT):**
+
+1. `inputs.from_parallel` can only reference outputs from **completed** parallel blocks (via their `manifest.json`).
+
+2. Within a parallel block, providers run their stages **sequentially**. A provider's stage N+1 can reference its own stage N outputs via `inputs.from: <stage-id>` (same as non-parallel stages).
+
+3. **Cross-provider dependencies within the same parallel block are NOT supported in v1.** Model this as two sequential parallel blocks:
+   ```yaml
+   # Correct: Two blocks for cross-evaluation
+   nodes:
+     - id: generate
+       parallel:
+         providers: [claude, codex]
+         stages:
+           - id: ideas
+             stage: brainstorm
+     - id: evaluate
+       parallel:
+         providers: [claude, codex]
+         stages:
+           - id: critique
+             stage: review-ideas
+             inputs:
+               from_parallel:
+                 stage: ideas
+                 providers: [codex]  # Claude evaluates Codex's ideas
+   ```
+
+4. **Validation:** At compile time, reject any `from_parallel` that references a stage in the current parallel block. Error message: "Cross-provider dependencies within a parallel block are not supported. Split into sequential blocks."
+
+**Design Decision:** The original PRD included an exception for cross-provider dependencies when execution order guarantees completion. This was removed after review because (a) it adds complexity without clear benefit, (b) it risks deadlocks/race conditions, and (c) the two-block pattern achieves the same goal more explicitly. Revisit in v2 if needed.
 
 #### Feature 2.3: Session Locking
 **Description:** File-based session locking to prevent duplicate concurrent sessions (see `scripts/lib/lock.sh`).
@@ -236,6 +308,30 @@ parallel:
 - [ ] Given no tmux, when running with `--foreground`, then sessions execute in the current terminal.
 - [ ] Given tmux available, when running without `--foreground`, then sessions run in a detached tmux session named `pipeline-<session>`.
 
+**tmux Session Management:**
+
+1. **Session naming:** `pipeline-{session}` where `{session}` is sanitized (alphanumeric, hyphen, underscore only).
+
+2. **Collision handling:**
+   - If tmux session exists AND PID in lock file is alive → error: "Session already running. Use `--force` to override."
+   - If tmux session exists AND no lock/PID dead → kill existing tmux session, proceed (stale session cleanup)
+   - Emit `tmux_session_cleaned` event when cleaning up stale sessions
+   - Log warning: "Cleaning up stale tmux session 'pipeline-X' (PID 12345 not running)"
+
+3. **Nested tmux:**
+   - If `$TMUX` is set, session runs in a new tmux window in the current session (not a new session)
+   - Document this behavior: "Running inside tmux creates a new window; running outside creates a detached session"
+
+4. **tmux unavailable:**
+   - With `--foreground`: Run directly, no tmux
+   - Without `--foreground` and no tmux: Error with message "tmux required for background execution. Install tmux or use `--foreground`"
+
+**tmux Acceptance Criteria:**
+- [ ] Stale tmux sessions (no corresponding lock/dead PID) are automatically cleaned up.
+- [ ] Nested tmux detection: create window, not session, when `$TMUX` is set.
+- [ ] Clear error message when tmux unavailable and `--foreground` not specified.
+- [ ] `tmux_session_cleaned` event emitted on stale session cleanup.
+
 #### Feature 3.2: Provider Support
 **Description:** Support Claude and Codex providers via CLI shell-out (see `scripts/lib/provider.sh`).
 
@@ -284,6 +380,20 @@ parallel:
 - [ ] `from_previous_iterations` population: Scan `stage-XX-{name}/iterations/` directory, collect all `output.md` files from iterations < current, sort by iteration number ascending.
 - [ ] `from_previous_iterations` for iteration 1: Empty array (no previous iterations exist).
 - [ ] All inputs accessible in `context.json` under `inputs.from_initial[]`, `inputs.from_stage{}`, `inputs.from_parallel{}`, `inputs.from_previous_iterations[]`.
+
+**Deterministic Input Ordering:**
+
+For reproducible outputs and stable tests, all input arrays are deterministically ordered:
+
+- `from_initial[]`: Sorted alphabetically by resolved absolute path
+- `from_stage{}`: Keys sorted alphabetically; values (iteration outputs) sorted by iteration number ascending
+- `from_parallel{}`: Provider keys sorted alphabetically; values sorted by iteration number
+- `from_previous_iterations[]`: Sorted by iteration number ascending (001, 002, 003...)
+
+This ordering is:
+- Deterministic across runs (same inputs produce same order)
+- Testable (golden file tests can assert exact order)
+- Independent of filesystem ordering (which varies by platform)
 
 **from_parallel Format Details:**
 ```yaml
@@ -486,6 +596,76 @@ nodes:
     runs: 10
 ```
 
+**Hook Condition Expressions:**
+
+Conditions use a minimal expression language with these features:
+- **Variables:** `iteration`, `stage`, `session`, `provider`, `status`, `event`
+- **Operators:** `==`, `!=`, `<`, `>`, `<=`, `>=`, `%`, `&&`, `||`, `!`, `in`, `matches`
+- **Literals:** integers, quoted strings, booleans (`true`, `false`)
+- **No function calls** (prevents injection attacks)
+
+**Grammar:**
+- Identifiers, string/number/bool literals, comparison operators, logical operators, parentheses
+- Unknown identifier or parse error evaluates to `false` and logs a warning
+- No side effects (sandboxed evaluator only)
+
+**Examples:**
+```yaml
+condition: "iteration % 5 == 0"           # Every 5th iteration
+condition: "iteration > 10"               # After 10 iterations
+condition: "stage == \"research\""        # Only for research stage
+condition: "iteration % 3 == 0 && iteration > 5"  # Every 3rd after 5
+```
+
+**Implementation:** Use a purpose-built expression evaluator like `govaluate` or `expr`. Reject any expression containing function calls or unknown identifiers at compile time.
+
+**Hook Action Semantics:**
+
+| Action | Behavior |
+|--------|----------|
+| `pause` | Stop and wait for `--resume` with optional `--context` |
+| `webhook` | POST JSON payload with `session`, `stage`, `iteration`, `provider`, `summary`, `context`. If response JSON includes `context`, use it; otherwise use raw body. Non-2xx or timeout results in pause with reason `hook_webhook_failed` (configurable). |
+| `script` | Run with `workdir` = repo root. Env includes `AGENT_PIPELINES_SESSION`, `AGENT_PIPELINES_STAGE`, `AGENT_PIPELINES_ITERATION`, `AGENT_PIPELINES_CONTEXT`. Non-zero exit → hook error; default action is pause (configurable). |
+| `confirm` | Interactive when stdin is TTY and `--foreground` is true; otherwise auto-pause. |
+
+**Hook Acceptance Criteria:**
+- [ ] Hook conditions evaluated using restricted expression evaluator (no arbitrary code execution).
+- [ ] Unknown variables in condition expressions produce validation error at compile time.
+- [ ] Condition evaluation errors logged but don't crash pipeline (hook skipped with warning).
+- [ ] Webhook action respects `timeout:` config and handles non-2xx gracefully.
+- [ ] Script action runs in repo root with pipeline env vars set.
+
+**Hook Timeouts:**
+
+Hooks have their own timeout independent of iteration/stage timeouts:
+
+| Timeout | Default | Configurable |
+|---------|---------|--------------|
+| `webhook` action | 60s | `timeout:` field in YAML |
+| `script` action | 30s | `timeout:` field in YAML |
+| `confirm` action | No timeout | Waits indefinitely (or auto-pauses in non-TTY) |
+
+**Timeout Interactions:**
+- Hook timeout is separate from stage timeout; hook can timeout without failing the stage
+- If a stage times out while a hook is running, both events are emitted:
+  1. `hook_timeout` or `hook_complete` (whichever happens first)
+  2. `stage_timeout` or `stage_complete`
+- Hook timeout follows configured action: `on_timeout: pause` (default) or `on_timeout: continue`
+
+```yaml
+hooks:
+  iteration_end:
+    - action: webhook
+      url: "https://api.example.com/review"
+      timeout: 120          # 2 minutes
+      on_timeout: continue  # Don't pause, just continue
+```
+
+**Cleanup Guarantees:**
+- Hook subprocesses (scripts) are killed on timeout via SIGTERM → SIGKILL cascade
+- Webhook requests use context with deadline; cancelled on timeout
+- State is consistent: if hook times out, no context injection happens
+
 #### Feature 6.4: Pause and Resume
 **Description:** Paused pipelines persist state and can be resumed with new context.
 
@@ -516,13 +696,22 @@ type Provider interface {
     // Name returns the provider identifier (e.g., "claude", "codex", "e2b")
     Name() string
 
+    // Init performs one-time setup (API key validation, connection pools)
+    // Called once when provider is registered, before any Execute calls
+    Init(ctx context.Context) error
+
     // Execute runs the prompt and returns the result
     Execute(ctx context.Context, req ExecuteRequest) (*ExecuteResult, error)
+
+    // Shutdown releases resources (connections, temp files)
+    // Called on engine shutdown or provider deregistration
+    Shutdown(ctx context.Context) error
 
     // Capabilities returns what this provider supports
     Capabilities() ProviderCapabilities
 
     // Validate checks if the provider is properly configured
+    // Called after Init to verify configuration is valid
     Validate() error
 }
 
@@ -553,7 +742,11 @@ type ProviderCapabilities struct {
 
 **Acceptance Criteria:**
 - [ ] All providers implement the `Provider` interface.
-- [ ] Engine calls `provider.Validate()` at startup to fail fast on misconfig.
+- [ ] Engine calls `provider.Init(ctx)` when provider is registered via `RegisterProvider()`.
+- [ ] Engine calls `provider.Shutdown(ctx)` for all providers on graceful shutdown (SIGTERM/SIGINT).
+- [ ] `Init()` failure prevents provider from being used (error returned from `RegisterProvider()`).
+- [ ] Providers can implement `Init()` and `Shutdown()` as no-ops for simple CLI-based providers.
+- [ ] Engine calls `provider.Validate()` after `Init()` to fail fast on misconfig.
 - [ ] Engine passes `ExecuteRequest` with all context needed for execution.
 - [ ] Providers handle their own timeout, retry, and cleanup logic.
 
@@ -815,6 +1008,26 @@ type Event struct {
 - **Zero global state:** Multiple engines can run concurrently with different configs.
 - **Provider injection:** Easy to mock providers for testing.
 
+**SDK Thread Safety:**
+
+| Component | Thread-Safe? | Notes |
+|-----------|--------------|-------|
+| `Engine` | Yes | Safe for concurrent `Run()` calls with different sessions |
+| `Provider` interface | Varies | Built-in providers are safe; custom providers must document |
+| Event channels | Yes | Buffered channels with non-blocking send |
+| Hook registry | No | Hooks must be registered before `Run()` |
+| State files | Yes | Atomic writes with file locking |
+
+**Provider Concurrency Requirements:**
+- Provider implementations must document whether they are safe for concurrent `Execute()` calls
+- If a provider is NOT thread-safe, the engine will serialize calls (one at a time per provider instance)
+- Built-in `claude` and `codex` providers are thread-safe (each call spawns a subprocess)
+- For API-based providers (future): recommend per-goroutine client instances or mutex-guarded shared client
+
+**Testing Requirement:**
+- [ ] Integration test that runs concurrent requests through same provider instance
+- [ ] Verify no race conditions with Go's race detector (`go test -race`)
+
 **Key Technical Decisions:**
 - **File format preservation:** Output identical `plan.json`, `context.json`, `state.json`, `events.jsonl` to minimize migration friction.
 - **Atomic writes:** All stateful files written atomically (write to temp, then rename).
@@ -882,6 +1095,21 @@ type Event struct {
 - Iteration directories: `iterations/{NNN}` where NNN is zero-padded 3-digit iteration number
 - Examples: `stage-00-plan`, `parallel-01-refine`, `iterations/001`, `iterations/015`
 
+**Stage Resolution Precedence:**
+
+When looking up a stage by name, the engine searches in this order:
+1. User's project `.claude/stages/{name}/stage.yaml` (highest priority)
+2. Pipeline YAML's directory `stages/{name}/stage.yaml` (relative to pipeline file)
+3. `$AGENT_PIPELINES_ROOT/scripts/stages/{name}/stage.yaml` (for plugin installations)
+4. Built-in stages compiled into binary (lowest priority, if any)
+
+First match wins. This allows users to override built-in stages with project-specific versions.
+
+**Stage Prompt Resolution:**
+1. `stage.yaml` `prompt:` field if specified (relative to stage.yaml location)
+2. `prompt.md` in the same directory as `stage.yaml`
+3. Error if neither found
+
 **Template Resolution Rules:**
 - Only simple string substitution; no shell evaluation
 - v3 variables: `${CTX}`, `${STATUS}`, `${RESULT}`, `${PROGRESS}`, `${OUTPUT}` resolved from context.json paths
@@ -908,6 +1136,30 @@ Merge is key-based: higher precedence replaces the command string for that key; 
 - Session-level fallback: `.claude/pipeline-runs/{session}/progress-{session}.md` (backward compatibility)
 - Context generation checks stage-level first, falls back to session-level if not found.
 - Parallel blocks use provider-isolated progress: `parallel-XX-{name}/providers/{provider}/progress.md`.
+
+**Progress Path Namespacing (Multi-Run Nodes):**
+
+When a node has `runs > 1`, each run needs isolated progress to avoid collision:
+
+```
+# Node with runs: 3
+stage-00-plan/
+├── run-001/
+│   ├── progress.md
+│   └── iterations/001/...
+├── run-002/
+│   ├── progress.md
+│   └── iterations/001/...
+└── run-003/
+    ├── progress.md
+    └── iterations/001/...
+```
+
+**Rules:**
+- `context.json` always references the run-specific progress file
+- Parallel providers within a run have further isolation: `providers/{provider}/progress.md`
+- Single-run stages (default) use flat structure: `stage-XX-{name}/progress.md`
+- `from_stage` references resolve to the specified run (or latest run if unspecified)
 
 **Progress File Ownership:**
 - **Session-level**: Engine creates with header; agents append findings
@@ -939,6 +1191,72 @@ Merge is key-based: higher precedence replaces the command string for that key; 
 - `status.json` (legacy v2 format) still supported: `{decision, reason, summary, work, errors}`.
 - Engine converts status.json to result.json format internally if needed.
 
+**Result Normalization:**
+
+The engine normalizes all agent output to the v3 `result.json` schema. This happens:
+1. After provider execution completes
+2. Before termination strategy evaluation
+3. Before event emission (iteration_complete event contains normalized result)
+
+**Conversion from status.json (v2 → v3):**
+```go
+// NormalizeResult converts status.json (v2) to result.json (v3)
+func NormalizeResult(status StatusV2) ResultV3 {
+    return ResultV3{
+        Summary: status.Summary,
+        Work: WorkInfo{
+            ItemsCompleted: status.Work.ItemsCompleted,
+            FilesTouched:   status.Work.FilesTouched,
+        },
+        Artifacts: ArtifactInfo{
+            Outputs: []string{},  // Not in v2
+            Paths:   []string{},  // Not in v2
+        },
+        Signals: SignalInfo{
+            // IMPORTANT: Do NOT infer plateau_suspected from decision.
+            // For fixed/queue termination, decision=="stop" doesn't mean plateau.
+            // Only set true if agent explicitly signals it.
+            PlateauSuspected: false,  // Cannot infer from v2, default false
+            Risk:             "low",  // Not in v2, default to low
+            Notes:            status.Reason,
+        },
+        // Preserve errors for debugging (v3 extension)
+        Errors: status.Errors,
+    }
+}
+```
+
+**File Precedence:**
+1. If `result.json` exists and is valid → use it directly
+2. Else if `status.json` exists and is valid → normalize to v3
+3. Else → error: `result_missing`
+
+**Storage:**
+- Normalized result written to `iterations/NNN/result.json`
+- Original `status.json` preserved (if agent wrote it) for debugging
+- `iteration_complete` event includes normalized result in `data.result`
+
+**Design Note:** The v2 `decision` field controls iteration flow but does NOT map to `plateau_suspected`. The decision to stop/continue is the agent's instruction to the engine, while `plateau_suspected` is a signal specifically for judgment termination.
+
+**output.md Format:**
+
+The `output.md` file captures the agent's response for each iteration.
+
+| Aspect | Specification |
+|--------|---------------|
+| **Content** | Raw agent stdout/stderr capture |
+| **Post-processing** | ANSI escape codes stripped |
+| **Tool output** | Included (helps judge understand context) |
+| **Agent-written files** | NOT duplicated (e.g., `result.json` content not in `output.md`) |
+| **Max size** | 1MB (truncated with `[output truncated at 1MB]` marker) |
+| **Encoding** | UTF-8 (invalid bytes replaced with replacement character) |
+
+**Truncation Behavior:**
+- If output exceeds 1MB, truncate at nearest line boundary before limit
+- Append `\n[output truncated at 1MB]\n` marker
+- Log warning: "Iteration N output truncated from X bytes to 1MB"
+- Full output available in raw capture file if needed (future: `output.raw.md`)
+
 **Error Taxonomy:**
 | Error Type | Retryable | Description | Recovery |
 |------------|-----------|-------------|----------|
@@ -958,6 +1276,92 @@ Merge is key-based: higher precedence replaces the command string for that key; 
 2. Fatal errors: Mark session failed, emit `error` event with type and context
 3. All errors: Write to `iterations/NNN/error.json` with full details for debugging
 4. Resume guidance: Failed sessions print exact command to resume from failure point
+
+**Retry Configuration:**
+```go
+type RetryConfig struct {
+    MaxAttempts     int           // Default: 2 (per PRD)
+    InitialDelay    time.Duration // Default: 2s
+    BackoffMulti    float64       // Default: 2.0
+    MaxDelay        time.Duration // Default: 30s
+    RetryableErrors []string      // Error types to retry
+}
+
+var DefaultRetryConfig = RetryConfig{
+    MaxAttempts:  2,              // Match PRD "up to 2 attempts"
+    InitialDelay: 2 * time.Second,
+    BackoffMulti: 2.0,
+    MaxDelay:     30 * time.Second,
+    RetryableErrors: []string{
+        "provider_timeout",
+        "provider_crashed",
+        "result_missing",
+        "iteration_timeout",
+        "judge_failed",
+    },
+}
+```
+
+**Retry State:**
+- Retry count resets on successful iteration completion
+- On session resume, retry count starts at 0 (fresh start)
+- Retry attempts logged with attempt number: `"Attempt 2/2 for iteration 5"`
+
+**Retry Artifact Handling:**
+
+Retries do NOT advance the iteration number. Retry 2 of iteration 5 is still iteration 5.
+
+**Attempt Tracking:**
+- Each attempt appends a record to `iterations/NNN/attempts.jsonl`:
+  ```json
+  {"attempt": 1, "status": "failed", "error": "provider_timeout", "started_at": "...", "ended_at": "...", "output_path": null}
+  {"attempt": 2, "status": "success", "error": null, "started_at": "...", "ended_at": "...", "output_path": "output.md"}
+  ```
+- Only the final successful (or last) attempt writes canonical `iterations/NNN/output.md` and `iterations/NNN/result.json`
+- `state.json` includes `current_attempt` for resume logic
+
+**Resume Semantics:**
+- On resume, check `iterations/{current}/attempts.jsonl` to determine if iteration was partially attempted
+- If last attempt was in-progress (no `ended_at`), restart from attempt 1 (assume corrupted)
+- After max retries, mark iteration failed and end session with `status: failed`
+
+**Event Context:**
+- `iteration_start` event includes `attempt: 1` (always starts at 1)
+- `iteration_complete` event includes `attempt: N` (which attempt succeeded)
+- `error` events include `attempt: N` for debugging
+
+**Structured Logging:**
+
+The engine uses structured logging (Go's `slog` or `zerolog`) with standard fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session` | string | Session name |
+| `stage` | string | Current stage ID |
+| `iteration` | int | Current iteration |
+| `provider` | string | Provider name (for parallel) |
+| `duration_ms` | int | Operation duration |
+| `level` | string | debug/info/warn/error |
+| `msg` | string | Human-readable message |
+| `error` | string | Error message (if applicable) |
+
+**Log Levels:**
+- `debug`: Template resolution, input collection, file operations
+- `info`: Session/stage/iteration start/end, hook invocations
+- `warn`: Retries, timeout warnings, fallback behavior
+- `error`: Failures that don't crash (recoverable)
+- `fatal`: Unrecoverable errors (exits process)
+
+**Configuration:**
+- `--log-level` CLI flag (default: info)
+- `--log-format` CLI flag: `json` (default), `pretty` (human-readable)
+- `AGENT_PIPELINES_LOG_LEVEL` env var
+
+**Correlation:** Every log entry includes `session` for filtering. When processing events, include `event_type` for correlation between logs and events.jsonl.
+
+**Note:** Logs and events serve different purposes:
+- **Events** (`events.jsonl`): Durable, append-only records of *what happened*. Machine-readable, used for replay and status.
+- **Logs**: Ephemeral records of *how it happened*. Used for debugging and operations.
 
 **Session State Machine:**
 ```
@@ -986,6 +1390,47 @@ Merge is key-based: higher precedence replaces the command string for that key; 
 - `resume` on `completed`: "Session already completed. Use --force to restart."
 - `pause` on `completed`: Already finished
 - `running` → `running`: Lock contention (session already active)
+
+**Formalized State Types (Go):**
+```go
+// State represents the session lifecycle state
+type State string
+
+const (
+    StatePending   State = "pending"
+    StateRunning   State = "running"
+    StatePaused    State = "paused"
+    StateCompleted State = "completed"
+    StateFailed    State = "failed"
+    StateAborted   State = "aborted"
+)
+
+// ValidTransitions defines allowed state changes
+var ValidTransitions = map[State][]State{
+    StatePending:   {StateRunning},
+    StateRunning:   {StateCompleted, StateFailed, StatePaused},
+    StatePaused:    {StateRunning, StateAborted},
+    StateCompleted: {}, // Terminal
+    StateFailed:    {StateRunning}, // Resume allowed
+    StateAborted:   {}, // Terminal
+}
+
+// Transition attempts a state change, returning error if invalid
+func (s *SessionState) Transition(to State) error {
+    valid := ValidTransitions[s.Status]
+    for _, allowed := range valid {
+        if allowed == to {
+            s.Status = to
+            return nil
+        }
+    }
+    return fmt.Errorf("invalid transition: %s → %s", s.Status, to)
+}
+```
+
+**State Machine Acceptance Criteria:**
+- [ ] State transitions validated via `ValidTransitions` map; invalid transitions return error.
+- [ ] `running → running` is an error (lock contention).
 
 **State Schema:**
 ```json
@@ -1074,6 +1519,44 @@ Merge is key-based: higher precedence replaces the command string for that key; 
 - Compare Go engine output artifacts against Bash engine for identical inputs.
 - Golden file tests for `plan.json`, `context.json`, `state.json` structure.
 - Event sequence validation against expected order.
+
+**Parity Harness (Go vs Bash):**
+
+A dedicated test harness verifies behavioral parity between Go and Bash engines:
+
+```bash
+# Run parity test
+./scripts/test-parity.sh <test-case>
+
+# Test cases defined in scripts/tests/parity/
+# Each case has: input/, expected-bash/, expected-go/ (generated)
+```
+
+**Harness Operation:**
+1. Run same pipeline on Bash engine, capture artifacts to `expected-bash/`
+2. Run same pipeline on Go engine, capture artifacts to `expected-go/`
+3. Compare artifacts with semantic diff (ignoring timestamps, PIDs, etc.)
+4. Report differences with context
+
+**Comparison Rules:**
+| Artifact | Comparison |
+|----------|------------|
+| `plan.json` | Exact match (after sorting keys) |
+| `context.json` | Exact match (after sorting keys) |
+| `state.json` | Semantic: ignore timestamps, match status/iteration/history structure |
+| `events.jsonl` | Semantic: match event types and order, ignore timestamps |
+| `output.md` | Ignore (provider-dependent) |
+| `result.json` | Semantic: match structure, ignore timing |
+
+**CI Integration:**
+- Run parity tests on every PR that touches Go engine code
+- Block merge if any parity test fails
+- Maintain golden files in version control for review
+
+**Acceptance Criteria:**
+- [ ] Parity harness exists and runs in CI
+- [ ] All existing test cases pass parity check
+- [ ] New test cases added for each feature
 
 **Edge Cases:**
 - Simultaneous event writes from 4+ parallel providers.
