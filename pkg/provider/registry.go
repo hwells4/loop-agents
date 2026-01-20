@@ -56,15 +56,6 @@ func (r *Registry) Get(name string) (Provider, bool) {
 	return p, ok
 }
 
-// MustGet returns the provider or panics if missing.
-func (r *Registry) MustGet(name string) Provider {
-	p, ok := r.Get(name)
-	if !ok {
-		panic(ErrProviderNotFound)
-	}
-	return p
-}
-
 // Names returns all registered provider names in sorted order.
 func (r *Registry) Names() []string {
 	r.mu.RLock()
@@ -87,11 +78,6 @@ func Register(p Provider) error {
 // Get fetches a provider from the default registry.
 func Get(name string) (Provider, bool) {
 	return defaultRegistry.Get(name)
-}
-
-// MustGet fetches a provider from the default registry or panics.
-func MustGet(name string) Provider {
-	return defaultRegistry.MustGet(name)
 }
 
 // Names returns the provider names from the default registry.

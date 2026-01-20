@@ -203,11 +203,6 @@ func (c *CLI) Execute(ctx context.Context, req provider.Request) (provider.Resul
 	return result, nil
 }
 
-// Invoke is deprecated. Use Execute instead.
-func (c *CLI) Invoke(ctx context.Context, req provider.Request) (provider.Result, error) {
-	return c.Execute(ctx, req)
-}
-
 func normalizeModel(model string) string {
 	switch strings.ToLower(strings.TrimSpace(model)) {
 	case "claude-opus", "opus-4", "opus-4.5":

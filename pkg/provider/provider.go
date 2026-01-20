@@ -29,13 +29,6 @@ type Request struct {
 	ResultPath string
 }
 
-// TokenUsage tracks token consumption for billing/monitoring.
-type TokenUsage struct {
-	InputTokens  int64 `json:"input_tokens"`
-	OutputTokens int64 `json:"output_tokens"`
-	TotalTokens  int64 `json:"total_tokens"`
-}
-
 // Result captures provider execution output and metadata.
 type Result struct {
 	// Output is the combined stdout (legacy compatibility).
@@ -61,9 +54,6 @@ type Result struct {
 
 	// Duration is the execution time.
 	Duration time.Duration
-
-	// TokensUsed tracks token consumption if available.
-	TokensUsed *TokenUsage
 }
 
 // Capability flags for provider features.
@@ -81,9 +71,6 @@ const (
 
 	// CapabilityVision indicates the provider supports image input.
 	CapabilityVision
-
-	// CapabilityTokenCounting indicates the provider reports token usage.
-	CapabilityTokenCounting
 )
 
 // Capabilities describes what a provider can do.
@@ -127,25 +114,5 @@ type Provider interface {
 	Capabilities() Capabilities
 
 	// Execute runs the agent with the given request.
-	// This replaces the deprecated Invoke method.
 	Execute(ctx context.Context, req Request) (Result, error)
-}
-
-// Invoker is a deprecated interface for backwards compatibility.
-// Use Provider.Execute instead.
-type Invoker interface {
-	Invoke(ctx context.Context, req Request) (Result, error)
-}
-
-// AsInvoker wraps a Provider to implement the deprecated Invoker interface.
-func AsInvoker(p Provider) Invoker {
-	return &invokerAdapter{p}
-}
-
-type invokerAdapter struct {
-	provider Provider
-}
-
-func (a *invokerAdapter) Invoke(ctx context.Context, req Request) (Result, error) {
-	return a.provider.Execute(ctx, req)
 }
