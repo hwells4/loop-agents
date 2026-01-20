@@ -10,20 +10,27 @@ nodes:
   # ═══════════════════════════════════════════════════════════════
   - id: phase1-implement
     stage: codex-work
-    runs: 25
+    model: gpt-5.2-codex:high
+    termination:
+      type: fixed
+      iterations: 25  # Max - agent stops early when beads empty
     context: |
       PHASE 1: Core Engine MVP
 
       IMPORTANT: Use beads labeled `pipeline/phase1` (NOT pipeline/${SESSION_NAME})
       Run: bd ready --label=pipeline/phase1
-      Claim: bd update <id> --status=in_progress --label=pipeline/phase1
+      Claim: bd update <id> --status=in_progress
       Close: bd close <id>
 
+      When bd ready --label=pipeline/phase1 returns empty, write decision: stop.
       Commit after each task. Tests: go test ./...
 
   - id: phase1-discover
     stage: bug-discovery
-    runs: 5
+    model: opus
+    termination:
+      type: fixed
+      iterations: 5
     inputs:
       from: phase1-implement
     context: |
@@ -37,18 +44,24 @@ nodes:
 
   - id: phase1-triage
     stage: bug-triage
-    runs: 3
+    model: opus
+    termination:
+      type: judgment
+      consensus: 2
+      max: 5
     inputs:
       from: phase1-discover
 
   - id: phase1-fix
     stage: ralph
-    runs: 10
+    model: opus
+    termination:
+      type: queue  # Stop when bug beads are done
+      max: 15
     inputs:
       from: phase1-triage
     context: |
-      Fix bugs created by bug-triage. Use beads labeled: pipeline/go-engine
-      Run: bd ready --label=pipeline/go-engine
+      Fix bugs created by bug-triage (uses default pipeline/${SESSION_NAME} label).
       Commit after each fix: git add -A && git commit -m "fix: [bead-id] - description"
       Tests: go test ./...
 
@@ -57,7 +70,10 @@ nodes:
   # ═══════════════════════════════════════════════════════════════
   - id: phase2-implement
     stage: codex-work
-    runs: 25
+    model: gpt-5.2-codex:high
+    termination:
+      type: fixed
+      iterations: 30  # More tasks in phase 2
     inputs:
       from: phase1-fix
     context: |
@@ -65,14 +81,18 @@ nodes:
 
       IMPORTANT: Use beads labeled `pipeline/phase2` (NOT pipeline/${SESSION_NAME})
       Run: bd ready --label=pipeline/phase2
-      Claim: bd update <id> --status=in_progress --label=pipeline/phase2
+      Claim: bd update <id> --status=in_progress
       Close: bd close <id>
 
+      When bd ready --label=pipeline/phase2 returns empty, write decision: stop.
       Commit after each task. Tests: go test ./...
 
   - id: phase2-discover
     stage: bug-discovery
-    runs: 5
+    model: opus
+    termination:
+      type: fixed
+      iterations: 5
     inputs:
       from: phase2-implement
     context: |
@@ -86,18 +106,24 @@ nodes:
 
   - id: phase2-triage
     stage: bug-triage
-    runs: 3
+    model: opus
+    termination:
+      type: judgment
+      consensus: 2
+      max: 5
     inputs:
       from: phase2-discover
 
   - id: phase2-fix
     stage: ralph
-    runs: 10
+    model: opus
+    termination:
+      type: queue
+      max: 15
     inputs:
       from: phase2-triage
     context: |
-      Fix bugs created by bug-triage. Use beads labeled: pipeline/go-engine
-      Run: bd ready --label=pipeline/go-engine
+      Fix bugs created by bug-triage (uses default pipeline/${SESSION_NAME} label).
       Commit after each fix: git add -A && git commit -m "fix: [bead-id] - description"
       Tests: go test ./...
 
@@ -106,7 +132,10 @@ nodes:
   # ═══════════════════════════════════════════════════════════════
   - id: phase3-implement
     stage: codex-work
-    runs: 25
+    model: gpt-5.2-codex:high
+    termination:
+      type: fixed
+      iterations: 20  # Fewer tasks in phase 3
     inputs:
       from: phase2-fix
     context: |
@@ -114,14 +143,18 @@ nodes:
 
       IMPORTANT: Use beads labeled `pipeline/phase3` (NOT pipeline/${SESSION_NAME})
       Run: bd ready --label=pipeline/phase3
-      Claim: bd update <id> --status=in_progress --label=pipeline/phase3
+      Claim: bd update <id> --status=in_progress
       Close: bd close <id>
 
+      When bd ready --label=pipeline/phase3 returns empty, write decision: stop.
       Commit after each task. Tests: go test ./...
 
   - id: phase3-discover
     stage: bug-discovery
-    runs: 5
+    model: opus
+    termination:
+      type: fixed
+      iterations: 5
     inputs:
       from: phase3-implement
     context: |
@@ -135,18 +168,24 @@ nodes:
 
   - id: phase3-triage
     stage: bug-triage
-    runs: 3
+    model: opus
+    termination:
+      type: judgment
+      consensus: 2
+      max: 5
     inputs:
       from: phase3-discover
 
   - id: phase3-fix
     stage: ralph
-    runs: 10
+    model: opus
+    termination:
+      type: queue
+      max: 15
     inputs:
       from: phase3-triage
     context: |
-      Fix bugs created by bug-triage. Use beads labeled: pipeline/go-engine
-      Run: bd ready --label=pipeline/go-engine
+      Fix bugs created by bug-triage (uses default pipeline/${SESSION_NAME} label).
       Commit after each fix: git add -A && git commit -m "fix: [bead-id] - description"
       Tests: go test ./...
       This completes the Go engine rewrite.
