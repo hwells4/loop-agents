@@ -10,35 +10,12 @@ LIB_DIR="${LIB_DIR:-$DECIDERS_SCRIPT_DIR}"
 
 source "$LIB_DIR/events.sh"
 source "$LIB_DIR/validate.sh"
+source "$LIB_DIR/utils.sh"
 
-decider_is_int() {
-  [[ "$1" =~ ^[0-9]+$ ]]
-}
-
-decider_int_or_default() {
-  local value=$1
-  local fallback=$2
-  if decider_is_int "$value"; then
-    echo "$value"
-  else
-    echo "$fallback"
-  fi
-}
-
-decider_safe_json() {
-  local candidate=$1
-
-  if [ -z "$candidate" ] || [ "$candidate" = "null" ]; then
-    echo "{}"
-    return 0
-  fi
-
-  if echo "$candidate" | jq -e '.' >/dev/null 2>&1; then
-    echo "$candidate"
-  else
-    echo "{}"
-  fi
-}
+# Aliases for backwards compatibility (use utils_* functions directly for new code)
+decider_is_int() { utils_is_int "$@"; }
+decider_int_or_default() { utils_int_or_default "$@"; }
+decider_safe_json() { utils_safe_json "$@"; }
 
 decider_result() {
   local decision=$1
