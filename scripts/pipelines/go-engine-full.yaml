@@ -17,13 +17,19 @@ nodes:
     context: |
       PHASE 1: Core Engine MVP
 
-      IMPORTANT: Use beads labeled `pipeline/phase1` (NOT pipeline/${SESSION_NAME})
-      Run: bd ready --label=pipeline/phase1
-      Claim: bd update <id> --status=in_progress
-      Close: bd close <id>
+      BEAD LABEL: Use `pipeline/phase1` for ALL bead commands (NOT pipeline/${SESSION_NAME})
 
-      When bd ready --label=pipeline/phase1 returns empty, write decision: stop.
-      Commit after each task. Tests: go test ./...
+      WORKFLOW:
+      1. Check in_progress: bd list --label=pipeline/phase1 --status=in_progress
+      2. If in_progress exists: FINISH IT and bd close <id>
+      3. Check ready: bd ready --label=pipeline/phase1
+      4. If ready exists: bd update <id> --status=in_progress, implement, bd close <id>
+      5. If ready empty but beads exist: They're BLOCKED - write decision: continue
+      6. If ALL beads closed: write decision: stop
+
+      CRITICAL: ALWAYS run `bd close <id>` after finishing a bead. Unclosed beads block everything.
+
+      Tests: go test ./...
 
   - id: phase1-discover
     stage: bug-discovery
@@ -79,13 +85,19 @@ nodes:
     context: |
       PHASE 2: Full Parity
 
-      IMPORTANT: Use beads labeled `pipeline/phase2` (NOT pipeline/${SESSION_NAME})
-      Run: bd ready --label=pipeline/phase2
-      Claim: bd update <id> --status=in_progress
-      Close: bd close <id>
+      BEAD LABEL: Use `pipeline/phase2` for ALL bead commands (NOT pipeline/${SESSION_NAME})
 
-      When bd ready --label=pipeline/phase2 returns empty, write decision: stop.
-      Commit after each task. Tests: go test ./...
+      WORKFLOW:
+      1. Check in_progress: bd list --label=pipeline/phase2 --status=in_progress
+      2. If in_progress exists: FINISH IT and bd close <id>
+      3. Check ready: bd ready --label=pipeline/phase2
+      4. If ready exists: bd update <id> --status=in_progress, implement, bd close <id>
+      5. If ready empty but beads exist: They're BLOCKED - write decision: continue
+      6. If ALL beads closed: write decision: stop
+
+      CRITICAL: ALWAYS run `bd close <id>` after finishing a bead. Unclosed beads block everything.
+
+      Tests: go test ./...
 
   - id: phase2-discover
     stage: bug-discovery
@@ -141,13 +153,19 @@ nodes:
     context: |
       PHASE 3: SDK & Hooks
 
-      IMPORTANT: Use beads labeled `pipeline/phase3` (NOT pipeline/${SESSION_NAME})
-      Run: bd ready --label=pipeline/phase3
-      Claim: bd update <id> --status=in_progress
-      Close: bd close <id>
+      BEAD LABEL: Use `pipeline/phase3` for ALL bead commands (NOT pipeline/${SESSION_NAME})
 
-      When bd ready --label=pipeline/phase3 returns empty, write decision: stop.
-      Commit after each task. Tests: go test ./...
+      WORKFLOW:
+      1. Check in_progress: bd list --label=pipeline/phase3 --status=in_progress
+      2. If in_progress exists: FINISH IT and bd close <id>
+      3. Check ready: bd ready --label=pipeline/phase3
+      4. If ready exists: bd update <id> --status=in_progress, implement, bd close <id>
+      5. If ready empty but beads exist: They're BLOCKED - write decision: continue
+      6. If ALL beads closed: write decision: stop
+
+      CRITICAL: ALWAYS run `bd close <id>` after finishing a bead. Unclosed beads block everything.
+
+      Tests: go test ./...
 
   - id: phase3-discover
     stage: bug-discovery

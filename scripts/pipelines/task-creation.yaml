@@ -1,0 +1,22 @@
+name: task-creation
+description: Create and refine tasks from an existing plan (skips plan debate)
+
+# Use when plan is already refined and you just need tasks created
+# Injects UI skills constraints into the refinement context
+
+nodes:
+  - id: create-tasks
+    stage: create-tasks
+    termination:
+      type: fixed
+      iterations: 1
+
+  - id: refine-tasks
+    stage: refine-tasks
+    inputs:
+      from: create-tasks
+    termination:
+      type: judgment
+      min_iterations: 2
+      consensus: 2
+      max: 5

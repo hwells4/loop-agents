@@ -2,24 +2,28 @@
 # Unified YAML Parser
 # Converts YAML to JSON for easy querying with jq
 
-# Convert YAML file to JSON
-# Usage: yaml_to_json "file.yaml"
-yaml_to_json() {
+# Internal implementation - do not call directly
+_yaml_to_json_impl() {
   local file=$1
-
   if [ ! -f "$file" ]; then
     echo "{}"
     return 1
-  fi
-
-  if command -v yq &>/dev/null; then
-    yq -o=json "$file"
-  elif python3 -c "import yaml" &>/dev/null 2>&1; then
-    python3 -c "import sys, json, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))" "$file"
+  elif command -v yq >/dev/null 2>&1; then
+    yq -o=json "$file" 2>/dev/null || { echo "{}"; return 1; }
+  elif python3 -c "import yaml" >/dev/null 2>&1; then
+    python3 -c "import sys, json, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))" "$file" 2>/dev/null || { echo "{}"; return 1; }
   else
-    echo "Error: Need yq or python3 with PyYAML" >&2
+    echo "{}"
     return 1
   fi
+}
+
+# Convert YAML file to JSON
+# Usage: yaml_to_json "file.yaml"
+# Note: Wrapper that suppresses bash -x trace output to prevent stdout pollution.
+# Uses bash -c with +x to invoke the implementation in a trace-free environment.
+yaml_to_json() {
+  bash +x -c 'source "'"${BASH_SOURCE[0]}"'" && _yaml_to_json_impl "$@"' _ "$@"
 }
 
 # Query a JSON value using jq

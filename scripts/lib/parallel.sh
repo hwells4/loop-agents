@@ -193,6 +193,10 @@ run_parallel_provider() {
     local stage_prompt_inline=$(echo "$stage_config" | jq -r '.prompt // empty')
     local stage_prompt_path=$(echo "$stage_config" | jq -r '.prompt_path // empty')
     local stage_context=$(echo "$stage_config" | jq -r '.context // empty')
+    # CLI --context flag overrides stage config (consistent with engine.sh)
+    if [ -n "${PIPELINE_CLI_CONTEXT:-}" ]; then
+      stage_context="$PIPELINE_CLI_CONTEXT"
+    fi
 
     # Get termination config
     local term_type=$(echo "$stage_config" | jq -r '.termination.type // "fixed"')

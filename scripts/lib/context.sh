@@ -246,7 +246,7 @@ build_inputs_json() {
     fi
   fi
 
-  # Load initial inputs from plan.json session.inputs
+  # Load initial inputs from plan.json session.inputs (CLI --input flags)
   # When in parallel scope, check pipeline_root first for plan.json
   local from_initial="[]"
   local plan_file="$run_dir/plan.json"

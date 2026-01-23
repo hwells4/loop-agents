@@ -1,103 +1,76 @@
-# Ralph Agent Instructions
+# Ralph Agent
 
-Read context from: ${CTX}
-Progress file: ${PROGRESS}
+Context: ${CTX}
+Progress: ${PROGRESS}
+Status: ${STATUS}
 
 ${CONTEXT}
 
-## Your Task
+## Do ONE Task
 
-1. Read `${PROGRESS}`
-   (check Codebase Patterns first)
+1. **Read progress** - check ${PROGRESS} for codebase patterns and prior work
 
-2. **Check for initial inputs** (requirements, plans, etc.):
+2. **Read inputs** (if first iteration):
    ```bash
-   jq -r '.inputs.from_initial[]' ${CTX} 2>/dev/null | while read file; do
-     echo "Reading input: $file"
-     cat "$file"
-   done
+   jq -r '.inputs.from_initial[]' ${CTX} 2>/dev/null | xargs cat
    ```
 
-3. Check remaining tasks:
+3. **Get one task**:
    ```bash
-   bd ready --label=pipeline/${SESSION_NAME}
+   bd ready | head -1
    ```
 
-4. Pick highest priority task
-
-5. Claim it:
+4. **Claim it**:
    ```bash
-   bd update <bead-id> --status=in_progress
+   bd update <id> --status=in_progress
    ```
 
-6. Implement that ONE task
+5. **Implement it fully** - write code, make it work
 
-7. **Run tests** (use commands from context.json):
+6. **Run tests**:
    ```bash
-   # Get test command from context.json (fallback to npm test)
    TEST_CMD=$(jq -r '.commands.test // "npm test"' ${CTX})
-   echo "Running tests: $TEST_CMD"
    $TEST_CMD
-
-   # Optional: run lint if configured
-   if jq -e '.commands.lint' ${CTX} > /dev/null 2>&1; then
-     LINT_CMD=$(jq -r '.commands.lint' ${CTX})
-     echo "Running lint: $LINT_CMD"
-     $LINT_CMD
-   fi
    ```
 
-8. Commit: `feat: [bead-id] - [Title]`
-
-9. Close the task:
+7. **Commit**:
    ```bash
-   bd close <bead-id>
+   git add -A && git commit -m "feat(<id>): <title>"
    ```
 
-10. Append learnings to progress file
+8. **Close it**:
+   ```bash
+   bd close <id>
+   ```
 
-## Progress Format
+9. **Update progress** - append to ${PROGRESS} (see format below)
 
-APPEND to ${PROGRESS}:
+10. **Write status** and STOP:
+    ```bash
+    cat > ${STATUS} << 'EOF'
+    {"decision": "continue", "summary": "Completed <id>: <title>"}
+    EOF
+    ```
+    If no tasks remain, use `"decision": "stop"` instead.
 
+**IMPORTANT: Do exactly ONE task, then stop.**
+
+---
+
+## Progress File Format
+
+**Codebase Patterns** (top of file, update as you learn):
 ```markdown
-## [Date] - [bead-id]
+## Codebase Patterns
+- **Pattern name**: How to use it
+- **Another pattern**: Description
+```
+
+**Work Log** (append after each task):
+```markdown
+## YYYY-MM-DD - <bead-id>: <title>
 - What was implemented
 - Files changed
-- **Learnings:**
-  - Patterns discovered
-  - Gotchas encountered
+- **Learnings**: Patterns discovered, gotchas encountered
 ---
 ```
-
-## Codebase Patterns
-
-Add reusable patterns to the TOP of progress file:
-
-```markdown
-## Codebase Patterns
-- [Pattern]: [How to use it]
-- [Pattern]: [How to use it]
-```
-
-## Stop Condition
-
-If queue is empty:
-```bash
-bd ready --label=pipeline/${SESSION_NAME}
-# Returns nothing = done
-```
-
-Write to `${STATUS}`:
-
-```json
-{
-  "decision": "stop",
-  "reason": "All tasks complete",
-  "summary": "Queue empty",
-  "work": {"items_completed": [], "files_touched": []},
-  "errors": []
-}
-```
-
-Otherwise, write `"decision": "continue"` and end normally.

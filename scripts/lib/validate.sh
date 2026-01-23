@@ -170,7 +170,7 @@ validate_loop() {
 
   # L003: YAML parses correctly
   local config
-  config=$(yaml_to_json "$config_file" 2>&1)
+  config=$(yaml_to_json "$config_file")
   if [ $? -ne 0 ] || [ -z "$config" ] || [ "$config" = "{}" ]; then
     errors+=("Invalid YAML syntax in stage.yaml")
     [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
@@ -500,7 +500,7 @@ _validate_pipeline_impl() {
 
   # P002: YAML parses correctly
   local config
-  config=$(yaml_to_json "$file" 2>&1)
+  config=$(yaml_to_json "$file")
   if [ $? -ne 0 ] || [ -z "$config" ] || [ "$config" = "{}" ]; then
     errors+=("Invalid YAML syntax")
     [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
